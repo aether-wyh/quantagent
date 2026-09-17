@@ -1,0 +1,290 @@
+{
+  "run_type": "folder_strategy_actual_code_on_local_qfq",
+  "data": {
+    "parquet_glob": "D:\\大学\\金融投资与量化\\因子日历测试\\february_march_results\\cache\\daily_by_stock\\*.parquet",
+    "membership_file": "D:\\qlib_data\\qlib_bin\\instruments\\csi300.txt",
+    "price_adjustment": "qfq",
+    "train_start": "2020-01-01T00:00:00",
+    "train_end": "2023-12-31T00:00:00",
+    "test_start": "2024-01-01T00:00:00",
+    "test_end": "2025-12-31T00:00:00",
+    "train_rows": 417370,
+    "test_rows": 167359,
+    "train_member_union_count": 450,
+    "test_member_union_count": 348
+  },
+  "settings": {
+    "capital": 1000000.0,
+    "buy_cost": 0.0003,
+    "sell_cost": 0.0008,
+    "slippage_each_side": 0.001,
+    "lot_size": 0,
+    "risk_free_rate": 0.02,
+    "target_date_handling": "DataFrame 的 D 日信号在下一个交易日开盘执行，不提前日期",
+    "signal_universe_handling": "按项目现有读取方式使用测试期间成员并集；成交时按历史成分资格检查"
+  },
+  "known_limits": [
+    "原代码要求 stock_kline_daily_hfq，但文件 JSON 指定 vnpy_stock_daily_qfq；本次按 JSON 使用前复权数据并以内存别名交给旧代码",
+    "原策略算信号时没有逐日排除尚未加入或已经调出的股票，成交时才按历史成分资格排除",
+    "本地日线截至2025-12-31，无法覆盖文件声称的2026-07-23",
+    "rolling 内部回撤判断仍沿用其不完整的开盘到收盘净值算法",
+    "indicator 的买入价、持有天数和部分风险规则仍按原代码执行"
+  ],
+  "benchmark": {
+    "total_return": 0.37233403026589396,
+    "annual_return": 0.17875196196846832,
+    "sharpe_ratio": 0.8205241079524944,
+    "max_ddpercent": -0.15596719336847775,
+    "yearly": {
+      "2024": {
+        "total_return": 0.15306390025318217,
+        "annual_return": 0.15986995899823087,
+        "sharpe_ratio": 0.6531197620908958,
+        "max_ddpercent": -0.14684088652101346
+      },
+      "2025": {
+        "total_return": 0.19016303429893688,
+        "annual_return": 0.19786174751383934,
+        "sharpe_ratio": 1.1349761229878115,
+        "max_ddpercent": -0.10816122155061214
+      }
+    },
+    "average_member_count": 298.6639175257732
+  },
+  "strategies": {
+    "rolling": {
+      "source_file": "D:\\大学\\金融投资与量化\\ai策略迭代开发\\新建文件夹(1)\\rolling\\step_01_20260726_084204_358339.py",
+      "target_weight_rows": 485,
+      "target_start": "2024-01-02T00:00:00",
+      "target_end": "2025-12-31T00:00:00",
+      "stock_column_count": 347,
+      "average_target_stock_weight": 0.45612609309031116,
+      "max_target_stock_weight": 0.7727272727272732,
+      "net": {
+        "capital": 1000000.0,
+        "end_balance": 883664.7357849481,
+        "total_return": -0.11633526421505191,
+        "annual_return": -0.062364590182495516,
+        "annual_volatility": 0.14853552799559355,
+        "sharpe_ratio": -0.49210503328062016,
+        "max_drawdown": -215582.85613898642,
+        "max_ddpercent": -0.21502796975379962,
+        "total_trade_count": 23269,
+        "total_commission": 112856.29687513965,
+        "total_slippage": 205209.22117798703,
+        "win_rate": 0.39150556531927355,
+        "profit_loss_ratio": 1.4043688423197795,
+        "yearly": {
+          "2024": {
+            "total_return": -0.10291028428839422,
+            "annual_return": -0.10692702552168531,
+            "sharpe_ratio": -0.7557084816773021,
+            "max_ddpercent": -0.13862049336344495,
+            "trade_count": 7002,
+            "commission": 54571.56043871646,
+            "slippage": 99172.51371206199
+          },
+          "2025": {
+            "total_return": -0.01496503603991095,
+            "annual_return": -0.01551497495400267,
+            "sharpe_ratio": -0.18988699751874819,
+            "max_ddpercent": -0.13273799462707647,
+            "trade_count": 16267,
+            "commission": 58284.7364364232,
+            "slippage": 106036.70746592504
+          }
+        },
+        "average_invested_ratio": 0.37279934694322847
+      },
+      "gross": {
+        "capital": 1000000.0,
+        "end_balance": 1266444.6911872365,
+        "total_return": 0.26644469118723646,
+        "annual_return": 0.1308699503101698,
+        "annual_volatility": 0.14848063992211172,
+        "sharpe_ratio": 0.7671114001411871,
+        "max_drawdown": -134119.00365979667,
+        "max_ddpercent": -0.11757270319636487,
+        "total_trade_count": 23304,
+        "total_commission": 0.0,
+        "total_slippage": 0.0,
+        "win_rate": 0.41845342706502636,
+        "profit_loss_ratio": 1.5847667874166347,
+        "yearly": {
+          "2024": {
+            "total_return": 0.05745024396550091,
+            "annual_return": 0.05989396345743625,
+            "sharpe_ratio": 0.3201938681270731,
+            "max_ddpercent": -0.11034073101713704,
+            "trade_count": 7006,
+            "commission": 0.0,
+            "slippage": 0.0
+          },
+          "2025": {
+            "total_return": 0.19763998203640676,
+            "annual_return": 0.20566668218174944,
+            "sharpe_ratio": 1.284516872274509,
+            "max_ddpercent": -0.07363277607642249,
+            "trade_count": 16298,
+            "commission": 0.0,
+            "slippage": 0.0
+          }
+        },
+        "average_invested_ratio": 0.37237087560528515
+      },
+      "same_day_execution_diagnostic": {
+        "capital": 1000000.0,
+        "end_balance": 679625.8160785676,
+        "total_return": -0.32037418392143235,
+        "annual_return": -0.18215795234250454,
+        "annual_volatility": 0.15648064742365814,
+        "sharpe_ratio": -1.330838422236843,
+        "max_drawdown": -363714.0996462825,
+        "max_ddpercent": -0.36275159439493965,
+        "total_trade_count": 23330,
+        "total_commission": 98724.04964196053,
+        "total_slippage": 179619.73399282037,
+        "win_rate": 0.3747006949716755,
+        "profit_loss_ratio": 1.2609150464675976,
+        "yearly": {
+          "2024": {
+            "total_return": -0.23677287620422383,
+            "annual_return": -0.2452471191665032,
+            "sharpe_ratio": -1.637917470327239,
+            "max_ddpercent": -0.25356079514719077,
+            "trade_count": 7075,
+            "commission": 51126.99285118714,
+            "slippage": 93047.00575934572
+          },
+          "2025": {
+            "total_return": -0.10953660464978243,
+            "annual_return": -0.11335452902612042,
+            "sharpe_ratio": -0.9602672315223297,
+            "max_ddpercent": -0.16284520587699347,
+            "trade_count": 16255,
+            "commission": 47597.05679077339,
+            "slippage": 86572.72823347469
+          }
+        },
+        "average_invested_ratio": 0.3738833404101396
+      }
+    },
+    "indicator": {
+      "source_file": "D:\\大学\\金融投资与量化\\ai策略迭代开发\\新建文件夹(1)\\indicator\\step_03_20260725_074129_055127.py",
+      "target_weight_rows": 485,
+      "target_start": "2024-01-02T00:00:00",
+      "target_end": "2025-12-31T00:00:00",
+      "stock_column_count": 473,
+      "average_target_stock_weight": 0.7506618995763447,
+      "max_target_stock_weight": 1.0000000000000009,
+      "net": {
+        "capital": 1000000.0,
+        "end_balance": 1418407.001998826,
+        "total_return": 0.41840700199882597,
+        "annual_return": 0.1996009880415759,
+        "annual_volatility": 0.23818974779250573,
+        "sharpe_ratio": 0.797547826953386,
+        "max_drawdown": -290945.1209348687,
+        "max_ddpercent": -0.18384984152364267,
+        "total_trade_count": 5805,
+        "total_commission": 102164.5444017252,
+        "total_slippage": 185424.50081537233,
+        "win_rate": 0.5691797845898923,
+        "profit_loss_ratio": 0.9569276987320817,
+        "yearly": {
+          "2024": {
+            "total_return": 0.11701886203274614,
+            "annual_return": 0.12213853875503955,
+            "sharpe_ratio": 0.5270791298905203,
+            "max_ddpercent": -0.12123770813500323,
+            "trade_count": 3159,
+            "commission": 44286.28687197647,
+            "slippage": 80257.11106430061
+          },
+          "2025": {
+            "total_return": 0.2698147275844698,
+            "annual_return": 0.28109871435795664,
+            "sharpe_ratio": 1.0492283525458748,
+            "max_ddpercent": -0.17031393488204682,
+            "trade_count": 2646,
+            "commission": 57878.257529748735,
+            "slippage": 105167.38975107172
+          }
+        },
+        "average_invested_ratio": 0.6579819786602529
+      },
+      "gross": {
+        "capital": 1000000.0,
+        "end_balance": 1829699.1692055594,
+        "total_return": 0.8296991692055595,
+        "annual_return": 0.369654136438728,
+        "annual_volatility": 0.23820933020866852,
+        "sharpe_ratio": 1.3533516240953753,
+        "max_drawdown": -312904.61793199973,
+        "max_ddpercent": -0.146157429244635,
+        "total_trade_count": 5806,
+        "total_commission": 0.0,
+        "total_slippage": 0.0,
+        "win_rate": 0.6056064390785456,
+        "profit_loss_ratio": 0.9656711002733303,
+        "yearly": {
+          "2024": {
+            "total_return": 0.2622392554044566,
+            "annual_return": 0.274444979796475,
+            "sharpe_ratio": 1.0812160599142289,
+            "max_ddpercent": -0.11673986823973215,
+            "trade_count": 3160,
+            "commission": 0.0,
+            "slippage": 0.0
+          },
+          "2025": {
+            "total_return": 0.44956604809384815,
+            "annual_return": 0.4696360155567709,
+            "sharpe_ratio": 1.6056266802215553,
+            "max_ddpercent": -0.14615742924463504,
+            "trade_count": 2646,
+            "commission": 0.0,
+            "slippage": 0.0
+          }
+        },
+        "average_invested_ratio": 0.6576694222910752
+      },
+      "same_day_execution_diagnostic": {
+        "capital": 1000000.0,
+        "end_balance": 1322970.447090466,
+        "total_return": 0.32297044709046596,
+        "annual_return": 0.1568750051669534,
+        "annual_volatility": 0.24095907313811285,
+        "sharpe_ratio": 0.6410505019214222,
+        "max_drawdown": -284016.86910144775,
+        "max_ddpercent": -0.2062428057813925,
+        "total_trade_count": 5811,
+        "total_commission": 100744.26739510217,
+        "total_slippage": 182880.6643393127,
+        "win_rate": 0.5681507784758263,
+        "profit_loss_ratio": 0.9107256222117083,
+        "yearly": {
+          "2024": {
+            "total_return": 0.12052796722723014,
+            "annual_return": 0.12580963434613368,
+            "sharpe_ratio": 0.5420627752029279,
+            "max_ddpercent": -0.12835756120629926,
+            "trade_count": 3161,
+            "commission": 44739.96225338793,
+            "slippage": 81027.39645578254
+          },
+          "2025": {
+            "total_return": 0.18066704784190635,
+            "annual_return": 0.18795182510075592,
+            "sharpe_ratio": 0.7310743738112647,
+            "max_ddpercent": -0.17736128084819536,
+            "trade_count": 2650,
+            "commission": 56004.30514171424,
+            "slippage": 101853.26788353018
+          }
+        },
+        "average_invested_ratio": 0.6588551461366389
+      }
+    }
+  }
+}

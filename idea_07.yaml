@@ -1,0 +1,30 @@
+user_idea: |
+  基于ADX环境识别的多策略融合轮动, 持仓5天.
+  环境判定(T-1日数据):
+  - ADX(14)<20: 空仓, 全仓现金.
+  - 20≤ADX(14)≤25: 震荡模式, 半仓, 用布林带(20,2)下轨反弹+RSI(5)<25超卖选股, 取前3只等权.
+  - ADX(14)>25: 趋势模式, 正常满仓, 用四个因子等权合成选股(T-1日数据):
+    1. 过去5日日均成交额对数 (ln(close_prev*volume_prev) 5日均值)
+    2. 20日动量 (close_prev/close.shift(21)-1)
+    3. 低波动(过去20日收益率标准差的负值)
+    4. 20日价格位置 ((close_prev-low_20)/(high_20-low_20))
+    取综合得分最高的10只股票等权买入.
+  趋势模式附加仓位调节: 计算沪深300成分股等权平均收盘价的20日均线, 若平均价低于均线, 则当日仓位减半(满仓→半仓).
+  风控: 初始止损入场价-2倍ATR, 移动止损上移至入场价+1倍ATR, 单票上限15%, 组合日亏>2%次日仓位减半.
+  交易: 每日开盘买入, 持有5天(震荡模式满5天卖出, 趋势模式持有5天再平衡).
+  [系统指令] 因子计算前先: close_prev=close.shift(1), volume_prev=volume.shift(1), high_prev=high.shift(1), low_prev=low.shift(1). 后续只用prev列. 严禁未来函数. 代码放在```python```中.
+
+train_start: "2020-01-01"
+train_end: "2022-12-31"
+validate_start: "2023-01-01"
+validate_end: "2023-12-31"
+backtest_start: "2024-01-01"
+backtest_end: "2025-12-31"
+universe:
+  - symbols: hs300
+    asset: 中国股票
+    description: 沪深300指数成分股
+evaluation:
+  min_sharpe_ratio: 0.9
+  max_drawdown: 0.25
+  min_return_rate: 0.12

@@ -1,0 +1,28 @@
+user_idea: |
+  基于ADX动态环境识别的多策略轮动, 持仓10天.
+  用T-1日数据计算ADX(14)判定环境:
+  - ADX<20: 空仓
+  - ADX 20-25: 震荡模式, 半仓, 布林带+RSI选前3只
+  - ADX>25: 趋势模式, 满仓, EMA多头排列+MACD选前5只
+  震荡因子: 布林带(20,2)下轨反弹, RSI(5)<25超卖.
+  趋势因子: EMA5>EMA20>EMA60多头排列, MACD>0且量>20日均量1.2倍.
+  交易: 等权买入, 开盘执行. 趋势模式持有至EMA5下穿EMA20, 震荡模式固定10天.
+  风控: 初始止损入场价-2倍ATR, 移动止损上移至入场价+1倍ATR, 单票上限15%, 组合日亏>2%次日仓位减半.
+  适用: 沪深300, 日线.
+  [系统指令] close_prev=close.shift(1), high_prev=high.shift(1), low_prev=low.shift(1), volume_prev=volume.shift(1). 严禁未来函数. 代码放```python```中.
+
+experiment_name: idea_n003s
+train_start: "2020-01-01"
+train_end: "2022-12-31"
+validate_start: "2023-01-01"
+validate_end: "2023-12-31"
+backtest_start: "2024-01-01"
+backtest_end: "2025-12-31"
+universe:
+  - symbols: hs300
+    asset: 中国股票
+    description: 沪深300指数成分股
+evaluation:
+  min_sharpe_ratio: 0.9
+  max_drawdown: 0.25
+  min_return_rate: 0.12

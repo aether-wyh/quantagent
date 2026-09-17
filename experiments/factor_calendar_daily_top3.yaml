@@ -1,0 +1,56 @@
+user_idea: |
+  复跑因子日历中适合旧日线框架的三个日频因子，股票池为当时有效的沪深300历史成分股。
+
+  因子选择依据是因子日历2022—2024正式回测；该回测每5个交易日调仓，因子方向只用2016—2020资料确定：
+  1. HF0219 平均真实波幅 ATR：年化收益9.32%，夏普0.45，最大回撤16.40%，三年收益均为正；取低值方向。
+  2. HF0017 三重指数移动平均 TEMA：年化收益9.27%，夏普0.43，最大回撤21.01%，三年收益均为正；取低值方向。
+  3. HF0091 Amihud 非流动性：年化收益2.61%，夏普0.24，最大回撤33.08%，三年收益均为正；取高值方向。
+  TEMA、BBI、TMA、VAMA的回测收益几乎相同，因此均线类只保留成绩最好的TEMA；Amihud用于减少三个信号同时押在同一种价格走势上的情况。
+
+  旧框架把output_weights_df的行日期当作权重形成日D，并在下一实际交易日T的开盘执行。每一行只能使用D日收盘及更早资料，不能读取T日行情。必须先把训练资料和当前检查期资料按日期拼接计算滚动值，再只输出当前检查期权重，不能让窗口在检查期第一天重新开始。当前检查期第一个实际交易日是第一个权重形成日，首次执行发生在它的下一实际交易日。
+
+  三个因子的固定定义：
+  - ATR14：在权重形成日D计算TR=max(high-low, abs(high-close.shift(1)), abs(low-close.shift(1)))，再取14日指数移动平均；数值越低越好。
+  - TEMA20：截至D日对close依次计算三层20日指数移动平均E1、E2、E3，TEMA=3*E1-3*E2+E3；数值越低越好。
+  - Amihud20：截至D日计算abs(close.pct_change())/amount的20日平均；数值越高越好。amount必须大于0，必须使用本地Parquet中的真实amount字段，不得用close*volume代替。
+
+  每个权重形成日D只在资料完整、成交量和成交额大于0、三个因子都有效，并且在实际执行日T仍属于沪深300的股票中做横向百分位排名。ATR和TEMA反向排名，Amihud正向排名，三个排名等权平均。每5个真实交易日形成一次新组合，选择综合分数最高的20只股票等权持有；其他日期沿用上次权重。若股票在两次调整之间退出沪深300，从退出后的第一个实际执行日起把它的权重改为0，空出的比例保留现金，不提前补买。候选不足20只时每只有效股票仍为5%，未分配部分保留现金。不得使用T日行情、shift(-n)、未来收益或T日开盘后才知道的资料。
+
+  训练期只用于确认代码和固定规则；2022—2024已经参与因子选择，本轮成绩只用于检查旧框架实现和组合表现，不得称为全新未见时期。2025最终时期本轮不运行，且不得用于修改规则。output_weights_df必须以系统每次提供的实际检查日期作为权重形成日生成，冻结后的同一份代码应能直接处理最终时期。
+
+experiment_name: factor_calendar_daily_top3
+train_start: "2015-01-05"
+train_end: "2021-12-31"
+validate_start: "2022-01-04"
+validate_end: "2024-12-31"
+development_start: "2022-01-04"
+development_end: "2024-12-31"
+backtest_start: "2025-01-02"
+backtest_end: "2025-12-31"
+final_test_start: "2025-01-02"
+final_test_end: "2025-12-31"
+universe:
+  - symbols: hs300
+    asset: 中国股票
+    description: 沪深300历史成分股，按每个交易日的有效区间筛选
+evaluation:
+  min_sharpe_ratio: 0.40
+  max_drawdown: 0.25
+  min_return_rate: 0.06
+buy_cost: 0.0003
+sell_cost: 0.0008
+slippage: 0.00025
+capital: 1000000
+development_folds: 3
+gap_trading_days: 10
+min_development_fold_days: 20
+walk_forward_development: true
+run_cost_stress: true
+run_delay_stress: true
+require_all_folds_beat_cash: true
+min_fold_pass_ratio: 0.67
+min_worst_fold_sharpe: 0.0
+min_cost_stress_sharpe: 0.0
+min_delay_stress_sharpe: 0.0
+run_final_test: false
+allow_final_test: false

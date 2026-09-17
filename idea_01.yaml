@@ -1,0 +1,16 @@
+user_idea: |
+  基于20日突破 + 成交量放大确认的趋势跟随策略
+train_start: "2020-01-01"
+train_end: "2022-12-31"
+validate_start: "2023-01-01"
+validate_end: "2023-12-31"
+backtest_start: "2024-01-01"
+backtest_end: "2025-12-31"
+universe:
+  - symbols: hs300
+    asset: 中国股票
+    description: 沪深300指数成分股
+evaluation:
+  min_sharpe_ratio: 1.0
+  max_drawdown: 0.25
+  min_return_rate: 0.12

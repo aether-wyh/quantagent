@@ -1,0 +1,57 @@
+--- review001/register_supplemental_001.py
++++ review002/register_supplemental_001.py
+@@ -3,6 +3,8 @@
+ import json, sqlite3, sys, traceback
+ from datetime import datetime, timezone
+ 
++if sys.flags.optimize:
++    raise RuntimeError('Optimized Python cannot run this reviewed administrative script')
+ P=Path.cwd(); V=P/'experiment_traces/meta_ashare_revision18'
+ sys.path.insert(0,str(V/'src'))
+ from quanta_agents.meta import casebank_continuation as c, casebank_supplemental as s, codex_gateway, diagnostic_monitor
+@@ -16,7 +18,9 @@
+ assert admission['registration_script_sha256']==c.sha(c.read(__file__))
+ assert admission['real_dispatch_authorized'] is True and admission['local_application_authorized'] is True
+ for pin in admission['independent_review_pins']: assert c.sha(c.read(pin['path']))==pin['sha256']
+-runtime=c.decode(c.read(P/'docs/research/meta_framework_v18_handoff/runtime_observation_001.json'))
++runtime_raw=c.read(P/'docs/research/meta_framework_v18_handoff/runtime_observation_001.json')
++assert c.sha(runtime_raw)==admission['runtime_observation_sha256']
++runtime=c.decode(runtime_raw)
+ for item in runtime['files']: assert c.sha(Path(item['path']).read_bytes())==item['sha256']
+ attempts=[]
+ def no_gateway(*args,**kwargs):
+@@ -24,10 +28,24 @@
+ codex_gateway.CodexGateway.run=no_gateway
+ controller=s.SupplementalStage(root,scope=scope,admission=admission_raw,expected_admission_sha256=c.sha(admission_raw))
+ baseline=P/'experiment_traces/meta_casebank_supplemental_preparations/reference_v15_original4_001_preservation_001'
+-saved=c.decode(c.read(baseline/'receipt.json'))
+-for item in saved['backups']:
++preservation_raw=c.read(baseline/'receipt.json')
++assert c.sha(preservation_raw)==admission['pre_stage_preservation_receipt_sha256']
++saved=c.decode(preservation_raw)
++expected=[(None,root/'ledger.sqlite3','campaign_ledger.sqlite3')]
++for i,(task_id,location) in enumerate(controller.plan['controller_paths'].items(),1):
++    expected.append((task_id,Path(location['root'])/'casebank_workbench.sqlite3',f'workbench_{i}.sqlite3'))
++assert len(expected)==len(saved['backups'])==5
++for item,(task_id,source_path,backup_name) in zip(saved['backups'],expected):
++    assert Path(item['source']).resolve()==source_path.resolve()
++    assert item.get('task_id')==task_id and item['backup']==backup_name
+     assert c.sha(Path(item['source']).read_bytes())==item['source_sha256_before_after']
+     assert c.sha((baseline/item['backup']).read_bytes())==item['backup_sha256']
++for name,digest in saved['artifacts'].items():
++    assert Path(name).name==name and c.sha(c.read(baseline/name))==digest
++original_rows_raw=c.read(baseline/'original_rows.json')
++assert c.sha(original_rows_raw)==saved['artifacts']['original_rows.json']
++original_rows=c.decode(original_rows_raw)
++assert c.content_hash(original_rows)==saved['original_rows_hash']
+ out=root/'v18_supplemental_registration_001';out.mkdir(exist_ok=False)
+ def dump(n,x): c.write_new(out/n,json.dumps(x,ensure_ascii=False,indent=2,allow_nan=False).encode('utf-8'))
+ dump('intent.json',{'at':datetime.now(timezone.utc).isoformat(),'scope_sha256':c.sha(scope_raw),'admission_sha256':c.sha(admission_raw),'operation':'prepare once, inspect saved, verify read-only monitor; model execution is forbidden in this registration process','pre_stage_full_backup_receipt_sha256':c.sha(c.read(baseline/'receipt.json'))})
+@@ -47,7 +65,6 @@
+     with sqlite3.connect((root/'ledger.sqlite3').as_uri()+'?mode=ro',uri=True) as db:
+         state=c._saved(db,c.TABLE)[0]
+         for key in ('id','scope','scope_hash','admission_json','admission_sha256'): assert c.same(state[key],scope['original_v17_state'][key])
+-        original_rows=c.decode(c.read(baseline/'original_rows.json'))
+         for table in ('runs','calls','transport_corrections_v16',c.CALLS,c.ACTIONS):
+             rows=[list(row) for row in db.execute('SELECT body FROM '+table+' ORDER BY rowid').fetchall()]
+             assert rows==original_rows[table]

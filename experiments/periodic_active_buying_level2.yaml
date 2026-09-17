@@ -1,0 +1,47 @@
+user_idea: |
+  优化A股1分钟规律放量策略，并用逐笔成交和十档行情识别“疑似分批主动买入”。
+
+  分钟部分已经固定：过去20日相同分钟成交额均值加1倍标准差、当分钟至少10万元、
+  同一上午或下午出现5批规律放量、4个间隔至少3个相同、至少4批上涨、涨幅较接近、
+  第5批后没有提前放量，并在预计下一批前2分钟确认上涨。确认后下一分钟开盘才允许买入。
+
+  旧研究中最值得继续检验的逐笔条件是：
+  - 前五批主动买入金额最大值/最小值不超过1.8；
+  - 前五批合计主动买入金额占比至少75%；
+  - 2分钟节奏优先，但要和其他节奏比较；
+  - 全市场同步上涨比例只能作为待检验条件，不能先认定有效。
+
+  训练期可以挑条件，验证期必须固定条件，最后回测期只检查一次。必须同时报告事件数、
+  严格成功比例、5分钟扣费后收益和区间稳定性。训练期与验证期合计少于20次的结果不得称为可靠。
+
+  严禁把以下结果字段用于生成信号或选择条件：volume_hit、next_up、joint_minute_hit、
+  target_buy_up_60、target_buy_up_70、target_buy_up_75、target_minute_return、
+  forward_5m、forward_10m、forward_20m。它们只能用于评价已经选出的事件。
+
+  output_weights_df 必须使用 trigger_ts 作为明确的时间列；股票列使用候选文件中的 code；
+  同一时刻有多只股票时等权，股票权重合计不超过1，剩余为 cash。候选文件已经包含全市场，
+  不要再用下面的示例股票名单删减候选。
+
+experiment_name: periodic_active_buying_level2
+train_start: "2026-02-02"
+train_end: "2026-03-31"
+validate_start: "2026-04-01"
+validate_end: "2026-05-27"
+backtest_start: "2026-05-28"
+backtest_end: "2026-07-22"
+bar_interval: "1m"
+backtest_mode: "event_parquet"
+event_horizon_minutes: 5
+event_cooldown_minutes: 20
+buy_cost: 0.0003
+sell_cost: 0.0008
+slippage: 0.00025
+capital: 1000000
+universe:
+  - symbols: dataset:periodic_level2_events
+    asset: 中国股票
+    description: A股全市场；实际股票范围以候选事件文件为准
+evaluation:
+  min_trade_count: 8
+  min_event_net_mean: 0.0
+  min_event_success_rate: 0.40

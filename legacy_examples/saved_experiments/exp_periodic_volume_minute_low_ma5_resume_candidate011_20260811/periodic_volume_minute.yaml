@@ -1,0 +1,56 @@
+user_idea: |
+  优化A股1分钟“规律放量后继续上涨”的筛选规则，先只研究分钟资料。
+
+  已知基准：
+  - 每个分钟的正常成交额，只能用此前20个交易日相同分钟计算。
+  - 异常放量线为此前均值加1倍标准差，且当分钟成交额至少10万元。
+  - 同一上午或下午内出现5批异常放量；4个间隔中至少3个相同，常见节奏为2分钟。
+  - 第5批出现后，在预计下一批前2分钟完成确认；确认后下一分钟开盘才允许买入。
+  - 初始筛选参考：至少4批上涨、各批涨幅较接近、没有提前放量、确认分钟上涨。
+
+  本轮目标：在训练期选择少量、能解释的筛选条件，在验证期固定条件，只在最后回测期检验一次。
+  重点比较5分钟毛收益、扣费后收益、每年稳定性、事件数和上涨比例。宁可少选，也不要靠很多条件拼出少数巧合。
+
+  严禁把以下结果字段用于生成信号或选择条件：volume_hit、next_up、joint_minute_hit、
+  target_minute_return、forward_5m、forward_10m、forward_20m。它们只能用于评价已经选出的事件。
+
+  output_weights_df 必须使用 trigger_ts 作为明确的时间列；股票列使用候选文件中的 code；
+  同一时刻有多只股票时等权，股票权重合计不超过1，剩余为 cash。候选文件已经包含全市场，
+  不要再用下面的示例股票名单删减候选。
+
+experiment_name: periodic_volume_minute
+train_start: "2022-01-01"
+train_end: "2023-12-31"
+validate_start: "2024-01-01"
+validate_end: "2024-12-31"
+backtest_start: "2025-01-01"
+backtest_end: "2025-12-31"
+initial_research_before_strategy: true
+research_selection_start: "2022-01-01"
+research_selection_end: "2022-12-31"
+research_confirmation_start: "2023-01-01"
+research_confirmation_end: "2023-12-31"
+max_diagnostic_rounds: 4
+min_formal_candidates_before_stop: 2
+stop_required_diagnostics:
+  - feature_screening
+  - event_response_curve
+  - next_pulse_mechanism
+  - core_variant_comparison
+bar_interval: "1m"
+backtest_mode: "event_parquet"
+event_horizon_minutes: 5
+event_cooldown_minutes: 20
+buy_cost: 0.0003
+sell_cost: 0.0008
+slippage: 0.00025
+capital: 1000000
+universe:
+  - symbols: dataset:periodic_minute_events
+    asset: 中国股票
+    description: A股全市场；实际股票范围以候选事件文件为准
+evaluation:
+  min_trade_count: 100
+  min_event_net_mean: 0.0
+  min_event_success_rate: 0.35
+  event_success_metric: gross_up_rate

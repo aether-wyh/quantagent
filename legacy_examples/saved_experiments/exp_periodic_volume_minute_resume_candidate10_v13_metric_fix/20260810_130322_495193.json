@@ -1,0 +1,98 @@
+{
+  "logged_at": "2026-08-10T13:03:22.493141+00:00",
+  "agent": "StrategyAgent",
+  "stage": "structured_output",
+  "epoch_index": 11,
+  "strategy_validate_round": 1,
+  "payload": {
+    "strategy_generation_meta": {
+      "status": "ok",
+      "hypothesis": "研究对象为periodic_minute_events覆盖的A股全市场，训练期为2022-01-01至2023-12-31，开发期为2024-01-01至2024-12-31，最终时期保持隐藏。每行候选仍视为已满足20日同分钟正常成交额、均值加1倍标准差且不少于10万元、同一上午或下午五批异常放量、四个间隔至少三个相同及按时确认等基础定义。唯一额外筛选改为pulse5_return<=-0.006113537117903958，缺失值不入选；不使用pulse_return_sum、past_up_count、no_early_spike、pre_window_up、pulse1_position或return_stability。结果字段只在事件确定后评价。决策时间为trigger_ts，下一分钟开盘进入；event_horizon_minutes=20，改为trigger后第20分钟收盘评价，不增加卖出条件，不跨午休或交易日。无法取得完整20分钟价格的事件排除并报告。同一trigger_ts和code先去重；同一股票相邻事件不足20分钟时只保留较早一次。同一时刻全部合格股票等比例分配，股票比例合计为1，无事件时cash为1。output_weights_df使用trigger_ts作为时间列、code作为股票列。报告训练期、2022、2023、开发期、2024及逐月的事件数、毛收益均值和中位数、上涨比例、按交易日计算的95%范围、0.16%费用后收益和缺失数。volume_hit、next_up、joint_minute_hit、target_minute_return、forward_5m、forward_10m和forward_20m禁止用于筛选、排序或比例分配，其中forward_20m只用于入选后的结果评价。因T+1限制，本候选仍只用于价格现象研究。",
+      "train_period": {
+        "start": "2022-01-01",
+        "end": "2023-12-31"
+      },
+      "validate_period": {
+        "start": "2024-01-01",
+        "end": "2024-12-31"
+      },
+      "required_data": [
+        {
+          "table_key": "periodic_minute_events",
+          "type": "auxiliary",
+          "fields": [
+            "candidate_id",
+            "date",
+            "code",
+            "trigger_ts",
+            "pulse5_return"
+          ],
+          "universe": null,
+          "time_range": {
+            "start": "2022-01-01",
+            "end": "2023-12-31"
+          },
+          "purpose": "提供基础五批事件、第五批涨跌幅、决策时间、股票代码和入选后的20分钟评价结果。"
+        }
+      ],
+      "backtest_datasets": [
+        "periodic_minute_events"
+      ],
+      "strategy_next_phase": "validate",
+      "strategy_decision_reason": "已将pulse5_return上限从-0.004851349670356973改为-0.006113537117903958，20分钟评价时间及其他规则保持不变，需要重新进行统计验证",
+      "based_on_previous_strategy": true,
+      "previous_strategy_source": "WorkflowState.strategy_code（进入本轮前保存的策略版本）",
+      "requested_code_changes": "策略修改要求：唯一主要变化：event_horizon_minutes=20保持不变，把pulse5_return界限从<=-0.004851349670356973改为<=-0.006113537117903958；其余规则不变。",
+      "code_diff": [
+        "--- previous_strategy.py",
+        "+++ generated_strategy.py",
+        "@@ -479,13 +479,13 @@",
+        "     \"train_end\": \"2023-12-31\",",
+        "     \"validate_start\": \"2024-01-01\",",
+        "     \"validate_end\": \"2024-12-31\",",
+        "-    \"pulse5_return_max\": -0.004851349670356973,",
+        "+    \"pulse5_return_max\": -0.006113537117903958,",
+        "     \"event_horizon_minutes\": 20,",
+        "     \"generic_selection_conditions\": [",
+        "         {",
+        "             \"feature\": \"pulse5_return\",",
+        "             \"operator\": \"<=\",",
+        "-            \"value\": -0.004851349670356973,",
+        "+            \"value\": -0.006113537117903958,",
+        "         },",
+        "     ],",
+        " }",
+        "@@ -509,8 +509,9 @@",
+        " ",
+        " strategy_next_phase = \"validate\"",
+        " strategy_decision_reason = (",
+        "-    \"已将D5的事件评价时间从5分钟改为20分钟，\"",
+        "-    \"其他筛选和比例分配规则保持不变，需要重新进行统计验证\"",
+        "+    \"已将pulse5_return上限从-0.004851349670356973\"",
+        "+    \"改为-0.006113537117903958，\"",
+        "+    \"20分钟评价时间及其他规则保持不变，需要重新进行统计验证\"",
+        " )",
+        " ",
+        " "
+      ],
+      "candidate_mode": "test_candidate",
+      "code_change_ratio": 0.00862895493767979,
+      "validation_required": true
+    },
+    "strategy_next_phase": "validate",
+    "strategy_decision_reason": "已将pulse5_return上限从-0.004851349670356973改为-0.006113537117903958，20分钟评价时间及其他规则保持不变，需要重新进行统计验证",
+    "universe": [
+      {
+        "symbols": [],
+        "asset": "中国股票",
+        "type": "dataset_defined",
+        "dataset": "periodic_minute_events",
+        "description": "A股全市场；实际股票范围以候选事件文件为准"
+      }
+    ],
+    "validate_period": {
+      "start": "2024-01-01",
+      "end": "2024-12-31"
+    }
+  }
+}

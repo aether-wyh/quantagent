@@ -1,0 +1,16 @@
+user_idea: |
+  布林带均值回归策略：当价格触及布林带上轨时，卖出；当价格触及布林带下轨时，买入。通过调整布林带的参数（如周期和标准差倍数）来优化策略表现。
+train_start: "2022-01-01"
+train_end: "2022-12-31"
+validate_start: "2023-01-01"
+validate_end: "2023-12-31"
+backtest_start: "2024-01-01"
+backtest_end: "2025-12-31"
+universe:
+  - symbols: ['BU88.SHFE','JD88.DCE','MA88.CZCE','PP88.DCE']
+    asset: 期货
+    description: 期货主连合约
+evaluation:
+  min_sharpe_ratio: 1.0
+  max_drawdown: 0.25
+  min_return_rate: 0.12

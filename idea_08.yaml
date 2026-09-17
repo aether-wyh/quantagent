@@ -1,0 +1,27 @@
+user_idea: |
+  每日开盘时调仓。
+  用T-1日数据计算四个因子(等权合成):
+  1. 过去5日日均成交额对数 (ln(close_prev * volume_prev) 5日均值)
+  2. 20日动量 (close_prev / close.shift(21) - 1)
+  3. 低波动 (过去20日收益率标准差的负值)
+  4. 20日价格位置 ((close_prev - low_20) / (high_20 - low_20))
+  取综合得分最高的10只股票等权买入,持有至次日开盘。
+  风控：
+  - 单只股票亏损超过8%止损清仓
+  - 市场环境过滤:计算所有沪深300成分股的等权平均收盘价,若该平均价低于其20日均线,则当日只买入5只股票(仓位减半)
+  [系统指令] 因子计算前先: close_prev=close.shift(1), volume_prev=volume.shift(1), 后续只用prev列.
+
+train_start: "2020-01-01"
+train_end: "2022-12-31"
+validate_start: "2023-01-01"
+validate_end: "2023-12-31"
+backtest_start: "2024-01-01"
+backtest_end: "2025-12-31"
+universe:
+  - symbols: hs300
+    asset: 中国股票
+    description: 沪深300指数成分股
+evaluation:
+  min_sharpe_ratio: 0.90
+  max_drawdown: 0.25
+  min_return_rate: 0.12

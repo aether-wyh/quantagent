@@ -1,0 +1,11 @@
+--- review001/prepare_supplemental_scope_001.py
++++ review002/prepare_supplemental_scope_001.py
+@@ -3,6 +3,8 @@
+ import json, sys
+ from datetime import datetime, timezone
+ 
++if sys.flags.optimize:
++    raise RuntimeError('Optimized Python cannot run this reviewed administrative script')
+ P=Path.cwd(); V=P/'experiment_traces/meta_ashare_revision18'
+ sys.path.insert(0,str(V/'src'))
+ from quanta_agents.meta import casebank_continuation as c, casebank_supplemental as s

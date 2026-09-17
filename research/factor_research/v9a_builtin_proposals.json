@@ -1,0 +1,945 @@
+{
+  "version": "v9a_proposals_v1",
+  "families": [
+    {
+      "arm": "existing_library",
+      "available_fields": [
+        "close"
+      ],
+      "constraints": [],
+      "controls": [],
+      "expected_direction": 1,
+      "expected_relation": "Research control; no new mechanism or five-day success is assumed.",
+      "expression_template": "pct_change(lag(close, 20), 100)",
+      "falsifiers": [
+        {
+          "comparator": "gt",
+          "control_refs": [],
+          "falsifier_id": "baseline_gain",
+          "interpretation": "A non-positive paired gain contradicts the proposed added information.",
+          "kind": "fixed_baseline_increment",
+          "metric": "paired_delta_pearson_ic",
+          "min_days": 60,
+          "split": "development_check",
+          "threshold": 0.0
+        }
+      ],
+      "family_id": "existing.F1",
+      "mechanism": "Exact frozen executable library definition.",
+      "modification": "existing_definition",
+      "parameters": {},
+      "parents": [
+        "F1"
+      ],
+      "primary_horizon": 5,
+      "provenance": {
+        "kind": "exact_existing_definition",
+        "primary_horizon_changed_for_common_comparison": true,
+        "prior_history_exposed": true,
+        "source": {
+          "path": "output/research/meta_v9_20260909/library_inventory.json",
+          "sha256": "91ef8fec1153132fe18e93ebe6306168246b07895031770faf375a4a55527ced"
+        },
+        "source_id": "F1"
+      },
+      "role": "return"
+    },
+    {
+      "arm": "existing_library",
+      "available_fields": [
+        "close"
+      ],
+      "constraints": [],
+      "controls": [],
+      "expected_direction": 1,
+      "expected_relation": "Research control; no new mechanism or five-day success is assumed.",
+      "expression_template": "pct_change(close, 5)",
+      "falsifiers": [
+        {
+          "comparator": "gt",
+          "control_refs": [],
+          "falsifier_id": "baseline_gain",
+          "interpretation": "A non-positive paired gain contradicts the proposed added information.",
+          "kind": "fixed_baseline_increment",
+          "metric": "paired_delta_pearson_ic",
+          "min_days": 60,
+          "split": "development_check",
+          "threshold": 0.0
+        }
+      ],
+      "family_id": "existing.F2",
+      "mechanism": "Exact frozen executable library definition.",
+      "modification": "existing_definition",
+      "parameters": {},
+      "parents": [
+        "F2"
+      ],
+      "primary_horizon": 5,
+      "provenance": {
+        "kind": "exact_existing_definition",
+        "primary_horizon_changed_for_common_comparison": true,
+        "prior_history_exposed": true,
+        "source": {
+          "path": "output/research/meta_v9_20260909/library_inventory.json",
+          "sha256": "91ef8fec1153132fe18e93ebe6306168246b07895031770faf375a4a55527ced"
+        },
+        "source_id": "F2"
+      },
+      "role": "return"
+    },
+    {
+      "arm": "existing_library",
+      "available_fields": [
+        "close",
+        "open"
+      ],
+      "constraints": [],
+      "controls": [],
+      "expected_direction": 1,
+      "expected_relation": "Research control; no new mechanism or five-day success is assumed.",
+      "expression_template": "rolling_mean(log(close / open) - log(open / lag(close, 1)), 20)",
+      "falsifiers": [
+        {
+          "comparator": "gt",
+          "control_refs": [],
+          "falsifier_id": "baseline_gain",
+          "interpretation": "A non-positive paired gain contradicts the proposed added information.",
+          "kind": "fixed_baseline_increment",
+          "metric": "paired_delta_pearson_ic",
+          "min_days": 60,
+          "split": "development_check",
+          "threshold": 0.0
+        }
+      ],
+      "family_id": "existing.F3",
+      "mechanism": "Exact frozen executable library definition.",
+      "modification": "existing_definition",
+      "parameters": {},
+      "parents": [
+        "F3"
+      ],
+      "primary_horizon": 5,
+      "provenance": {
+        "kind": "exact_existing_definition",
+        "primary_horizon_changed_for_common_comparison": true,
+        "prior_history_exposed": true,
+        "source": {
+          "path": "output/research/meta_v9_20260909/library_inventory.json",
+          "sha256": "91ef8fec1153132fe18e93ebe6306168246b07895031770faf375a4a55527ced"
+        },
+        "source_id": "F3"
+      },
+      "role": "return"
+    },
+    {
+      "arm": "existing_library",
+      "available_fields": [
+        "close",
+        "high",
+        "low"
+      ],
+      "constraints": [],
+      "controls": [],
+      "expected_direction": 1,
+      "expected_relation": "Research control; no new mechanism or five-day success is assumed.",
+      "expression_template": "rolling_mean(where(high > low, (2 * close - high - low) / (high - low), 0), 5)",
+      "falsifiers": [
+        {
+          "comparator": "gt",
+          "control_refs": [],
+          "falsifier_id": "baseline_gain",
+          "interpretation": "A non-positive paired gain contradicts the proposed added information.",
+          "kind": "fixed_baseline_increment",
+          "metric": "paired_delta_pearson_ic",
+          "min_days": 60,
+          "split": "development_check",
+          "threshold": 0.0
+        }
+      ],
+      "family_id": "existing.F4",
+      "mechanism": "Exact frozen executable library definition.",
+      "modification": "existing_definition",
+      "parameters": {},
+      "parents": [
+        "F4"
+      ],
+      "primary_horizon": 5,
+      "provenance": {
+        "kind": "exact_existing_definition",
+        "primary_horizon_changed_for_common_comparison": true,
+        "prior_history_exposed": true,
+        "source": {
+          "path": "output/research/meta_v9_20260909/library_inventory.json",
+          "sha256": "91ef8fec1153132fe18e93ebe6306168246b07895031770faf375a4a55527ced"
+        },
+        "source_id": "F4"
+      },
+      "role": "return"
+    },
+    {
+      "arm": "existing_library",
+      "available_fields": [
+        "close"
+      ],
+      "constraints": [],
+      "controls": [],
+      "expected_direction": 1,
+      "expected_relation": "Research control; no new mechanism or five-day success is assumed.",
+      "expression_template": "rolling_sum(where(pct_change(close, 1) < 0, pct_change(close, 1) * pct_change(close, 1), 0), 20) / rolling_sum(pct_change(close, 1) * pct_change(close, 1), 20)",
+      "falsifiers": [
+        {
+          "comparator": "gt",
+          "control_refs": [],
+          "falsifier_id": "baseline_gain",
+          "interpretation": "A non-positive paired gain contradicts the proposed added information.",
+          "kind": "fixed_baseline_increment",
+          "metric": "paired_delta_pearson_ic",
+          "min_days": 60,
+          "split": "development_check",
+          "threshold": 0.0
+        }
+      ],
+      "family_id": "existing.F5",
+      "mechanism": "Exact frozen executable library definition.",
+      "modification": "existing_definition",
+      "parameters": {},
+      "parents": [
+        "F5"
+      ],
+      "primary_horizon": 5,
+      "provenance": {
+        "kind": "exact_existing_definition",
+        "primary_horizon_changed_for_common_comparison": true,
+        "prior_history_exposed": true,
+        "source": {
+          "path": "output/research/meta_v9_20260909/library_inventory.json",
+          "sha256": "91ef8fec1153132fe18e93ebe6306168246b07895031770faf375a4a55527ced"
+        },
+        "source_id": "F5"
+      },
+      "role": "return"
+    },
+    {
+      "arm": "existing_library",
+      "available_fields": [
+        "volume"
+      ],
+      "constraints": [],
+      "controls": [],
+      "expected_direction": 1,
+      "expected_relation": "Research control; no new mechanism or five-day success is assumed.",
+      "expression_template": "rolling_mean(volume, 5) / lag(rolling_mean(volume, 60), 5)",
+      "falsifiers": [
+        {
+          "comparator": "gt",
+          "control_refs": [],
+          "falsifier_id": "baseline_gain",
+          "interpretation": "A non-positive paired gain contradicts the proposed added information.",
+          "kind": "fixed_baseline_increment",
+          "metric": "paired_delta_pearson_ic",
+          "min_days": 60,
+          "split": "development_check",
+          "threshold": 0.0
+        }
+      ],
+      "family_id": "existing.F6",
+      "mechanism": "Exact frozen executable library definition.",
+      "modification": "existing_definition",
+      "parameters": {},
+      "parents": [
+        "F6"
+      ],
+      "primary_horizon": 5,
+      "provenance": {
+        "kind": "exact_existing_definition",
+        "primary_horizon_changed_for_common_comparison": true,
+        "prior_history_exposed": true,
+        "source": {
+          "path": "output/research/meta_v9_20260909/library_inventory.json",
+          "sha256": "91ef8fec1153132fe18e93ebe6306168246b07895031770faf375a4a55527ced"
+        },
+        "source_id": "F6"
+      },
+      "role": "return"
+    },
+    {
+      "arm": "existing_library",
+      "available_fields": [
+        "close"
+      ],
+      "constraints": [],
+      "controls": [],
+      "expected_direction": 1,
+      "expected_relation": "Research control; no new mechanism or five-day success is assumed.",
+      "expression_template": "rolling_std(pct_change(close, 1), 20)",
+      "falsifiers": [
+        {
+          "comparator": "gt",
+          "control_refs": [],
+          "falsifier_id": "baseline_gain",
+          "interpretation": "A non-positive paired gain contradicts the proposed added information.",
+          "kind": "fixed_baseline_increment",
+          "metric": "paired_delta_pearson_ic",
+          "min_days": 60,
+          "split": "development_check",
+          "threshold": 0.0
+        }
+      ],
+      "family_id": "existing.F7",
+      "mechanism": "Exact frozen executable library definition.",
+      "modification": "existing_definition",
+      "parameters": {},
+      "parents": [
+        "F7"
+      ],
+      "primary_horizon": 5,
+      "provenance": {
+        "kind": "exact_existing_definition",
+        "primary_horizon_changed_for_common_comparison": true,
+        "prior_history_exposed": true,
+        "source": {
+          "path": "output/research/meta_v9_20260909/library_inventory.json",
+          "sha256": "91ef8fec1153132fe18e93ebe6306168246b07895031770faf375a4a55527ced"
+        },
+        "source_id": "F7"
+      },
+      "role": "risk"
+    },
+    {
+      "arm": "existing_library",
+      "available_fields": [
+        "close",
+        "volume"
+      ],
+      "constraints": [],
+      "controls": [],
+      "expected_direction": 1,
+      "expected_relation": "Research control; no new mechanism or five-day success is assumed.",
+      "expression_template": "rolling_corr(pct_change(close, 1), log(volume), 20)",
+      "falsifiers": [
+        {
+          "comparator": "gt",
+          "control_refs": [],
+          "falsifier_id": "baseline_gain",
+          "interpretation": "A non-positive paired gain contradicts the proposed added information.",
+          "kind": "fixed_baseline_increment",
+          "metric": "paired_delta_pearson_ic",
+          "min_days": 60,
+          "split": "development_check",
+          "threshold": 0.0
+        }
+      ],
+      "family_id": "existing.F8",
+      "mechanism": "Exact frozen executable library definition.",
+      "modification": "existing_definition",
+      "parameters": {},
+      "parents": [
+        "F8"
+      ],
+      "primary_horizon": 5,
+      "provenance": {
+        "kind": "exact_existing_definition",
+        "primary_horizon_changed_for_common_comparison": true,
+        "prior_history_exposed": true,
+        "source": {
+          "path": "output/research/meta_v9_20260909/library_inventory.json",
+          "sha256": "91ef8fec1153132fe18e93ebe6306168246b07895031770faf375a4a55527ced"
+        },
+        "source_id": "F8"
+      },
+      "role": "return"
+    },
+    {
+      "arm": "existing_library",
+      "available_fields": [
+        "amount",
+        "close"
+      ],
+      "constraints": [],
+      "controls": [],
+      "expected_direction": 1,
+      "expected_relation": "Research control; no new mechanism or five-day success is assumed.",
+      "expression_template": "rolling_mean(abs(pct_change(close, 1)) / amount, 20)",
+      "falsifiers": [
+        {
+          "comparator": "gt",
+          "control_refs": [],
+          "falsifier_id": "baseline_gain",
+          "interpretation": "A non-positive paired gain contradicts the proposed added information.",
+          "kind": "fixed_baseline_increment",
+          "metric": "paired_delta_pearson_ic",
+          "min_days": 60,
+          "split": "development_check",
+          "threshold": 0.0
+        }
+      ],
+      "family_id": "existing.HF0091",
+      "mechanism": "Exact frozen executable library definition.",
+      "modification": "existing_definition",
+      "parameters": {},
+      "parents": [
+        "HF0091"
+      ],
+      "primary_horizon": 5,
+      "provenance": {
+        "kind": "exact_existing_definition",
+        "primary_horizon_changed_for_common_comparison": true,
+        "prior_history_exposed": true,
+        "source": {
+          "path": "output/research/meta_v9_20260909/library_inventory.json",
+          "sha256": "91ef8fec1153132fe18e93ebe6306168246b07895031770faf375a4a55527ced"
+        },
+        "source_id": "HF0091"
+      },
+      "role": "return"
+    },
+    {
+      "arm": "existing_library",
+      "available_fields": [
+        "close",
+        "open"
+      ],
+      "constraints": [],
+      "controls": [],
+      "expected_direction": 1,
+      "expected_relation": "Research control; no new mechanism or five-day success is assumed.",
+      "expression_template": "where(abs(open) > 1e-12, close / open, 0 / 0) - 1",
+      "falsifiers": [
+        {
+          "comparator": "gt",
+          "control_refs": [],
+          "falsifier_id": "baseline_gain",
+          "interpretation": "A non-positive paired gain contradicts the proposed added information.",
+          "kind": "fixed_baseline_increment",
+          "metric": "paired_delta_pearson_ic",
+          "min_days": 60,
+          "split": "development_check",
+          "threshold": 0.0
+        }
+      ],
+      "family_id": "existing.calendar.standard.intraday_return",
+      "mechanism": "Exact frozen executable library definition.",
+      "modification": "existing_definition",
+      "parameters": {},
+      "parents": [
+        "calendar.standard.intraday_return"
+      ],
+      "primary_horizon": 5,
+      "provenance": {
+        "kind": "exact_existing_definition",
+        "primary_horizon_changed_for_common_comparison": true,
+        "prior_history_exposed": true,
+        "source": {
+          "path": "output/research/meta_v9_20260909/library_inventory.json",
+          "sha256": "91ef8fec1153132fe18e93ebe6306168246b07895031770faf375a4a55527ced"
+        },
+        "source_id": "calendar.standard.intraday_return"
+      },
+      "role": "return"
+    },
+    {
+      "arm": "existing_library",
+      "available_fields": [
+        "close",
+        "open"
+      ],
+      "constraints": [],
+      "controls": [],
+      "expected_direction": 1,
+      "expected_relation": "Research control; no new mechanism or five-day success is assumed.",
+      "expression_template": "where(abs(lag(close, 1)) > 1e-12, open / lag(close, 1), 0 / 0) - 1",
+      "falsifiers": [
+        {
+          "comparator": "gt",
+          "control_refs": [],
+          "falsifier_id": "baseline_gain",
+          "interpretation": "A non-positive paired gain contradicts the proposed added information.",
+          "kind": "fixed_baseline_increment",
+          "metric": "paired_delta_pearson_ic",
+          "min_days": 60,
+          "split": "development_check",
+          "threshold": 0.0
+        }
+      ],
+      "family_id": "existing.calendar.standard.overnight_return",
+      "mechanism": "Exact frozen executable library definition.",
+      "modification": "existing_definition",
+      "parameters": {},
+      "parents": [
+        "calendar.standard.overnight_return"
+      ],
+      "primary_horizon": 5,
+      "provenance": {
+        "kind": "exact_existing_definition",
+        "primary_horizon_changed_for_common_comparison": true,
+        "prior_history_exposed": true,
+        "source": {
+          "path": "output/research/meta_v9_20260909/library_inventory.json",
+          "sha256": "91ef8fec1153132fe18e93ebe6306168246b07895031770faf375a4a55527ced"
+        },
+        "source_id": "calendar.standard.overnight_return"
+      },
+      "role": "return"
+    },
+    {
+      "arm": "existing_library",
+      "available_fields": [
+        "close"
+      ],
+      "constraints": [],
+      "controls": [],
+      "expected_direction": 1,
+      "expected_relation": "Research control; no new mechanism or five-day success is assumed.",
+      "expression_template": "where(abs(lag(close, 20)) > 1e-12, close / lag(close, 20), 0 / 0) - 1",
+      "falsifiers": [
+        {
+          "comparator": "gt",
+          "control_refs": [],
+          "falsifier_id": "baseline_gain",
+          "interpretation": "A non-positive paired gain contradicts the proposed added information.",
+          "kind": "fixed_baseline_increment",
+          "metric": "paired_delta_pearson_ic",
+          "min_days": 60,
+          "split": "development_check",
+          "threshold": 0.0
+        }
+      ],
+      "family_id": "existing.calendar.standard.short_reversal",
+      "mechanism": "Exact frozen executable library definition.",
+      "modification": "existing_definition",
+      "parameters": {},
+      "parents": [
+        "calendar.standard.short_reversal"
+      ],
+      "primary_horizon": 5,
+      "provenance": {
+        "kind": "exact_existing_definition",
+        "primary_horizon_changed_for_common_comparison": true,
+        "prior_history_exposed": true,
+        "source": {
+          "path": "output/research/meta_v9_20260909/library_inventory.json",
+          "sha256": "91ef8fec1153132fe18e93ebe6306168246b07895031770faf375a4a55527ced"
+        },
+        "source_id": "calendar.standard.short_reversal"
+      },
+      "role": "return"
+    },
+    {
+      "arm": "rule_perturbation",
+      "available_fields": [
+        "close"
+      ],
+      "constraints": [],
+      "controls": [],
+      "expected_direction": 1,
+      "expected_relation": "A prespecified simple window grid controls for parameter search without structural reasoning.",
+      "expression_template": "pct_change(close, {w})",
+      "falsifiers": [
+        {
+          "comparator": "gt",
+          "control_refs": [],
+          "falsifier_id": "baseline_gain",
+          "interpretation": "A non-positive paired gain contradicts the proposed added information.",
+          "kind": "fixed_baseline_increment",
+          "metric": "paired_delta_pearson_ic",
+          "min_days": 60,
+          "split": "development_check",
+          "threshold": 0.0
+        }
+      ],
+      "family_id": "rule.price_change",
+      "mechanism": "Change only the parent's trailing window.",
+      "modification": "window_only",
+      "parameters": {
+        "w": {
+          "meaning": "trailing sessions",
+          "values": [
+            3,
+            5,
+            10,
+            20
+          ]
+        }
+      },
+      "parents": [
+        "F2"
+      ],
+      "primary_horizon": 5,
+      "provenance": {
+        "kind": "deterministic_window_grid",
+        "llm_calls_per_point": 0,
+        "source": {
+          "path": "output/research/meta_v9_20260909/library_inventory.json",
+          "sha256": "91ef8fec1153132fe18e93ebe6306168246b07895031770faf375a4a55527ced"
+        }
+      },
+      "role": "return"
+    },
+    {
+      "arm": "rule_perturbation",
+      "available_fields": [
+        "close",
+        "open"
+      ],
+      "constraints": [],
+      "controls": [],
+      "expected_direction": 1,
+      "expected_relation": "A prespecified simple window grid controls for parameter search without structural reasoning.",
+      "expression_template": "rolling_mean(log(close / open) - log(open / lag(close, 1)), {w})",
+      "falsifiers": [
+        {
+          "comparator": "gt",
+          "control_refs": [],
+          "falsifier_id": "baseline_gain",
+          "interpretation": "A non-positive paired gain contradicts the proposed added information.",
+          "kind": "fixed_baseline_increment",
+          "metric": "paired_delta_pearson_ic",
+          "min_days": 60,
+          "split": "development_check",
+          "threshold": 0.0
+        }
+      ],
+      "family_id": "rule.session_disagreement",
+      "mechanism": "Change only the parent's trailing window.",
+      "modification": "window_only",
+      "parameters": {
+        "w": {
+          "meaning": "trailing sessions",
+          "values": [
+            3,
+            5,
+            10,
+            20
+          ]
+        }
+      },
+      "parents": [
+        "F3"
+      ],
+      "primary_horizon": 5,
+      "provenance": {
+        "kind": "deterministic_window_grid",
+        "llm_calls_per_point": 0,
+        "source": {
+          "path": "output/research/meta_v9_20260909/library_inventory.json",
+          "sha256": "91ef8fec1153132fe18e93ebe6306168246b07895031770faf375a4a55527ced"
+        }
+      },
+      "role": "return"
+    },
+    {
+      "arm": "rule_perturbation",
+      "available_fields": [
+        "close",
+        "high",
+        "low"
+      ],
+      "constraints": [],
+      "controls": [],
+      "expected_direction": 1,
+      "expected_relation": "A prespecified simple window grid controls for parameter search without structural reasoning.",
+      "expression_template": "rolling_mean(where(high > low, (2 * close - high - low) / (high - low), 0), {w})",
+      "falsifiers": [
+        {
+          "comparator": "gt",
+          "control_refs": [],
+          "falsifier_id": "baseline_gain",
+          "interpretation": "A non-positive paired gain contradicts the proposed added information.",
+          "kind": "fixed_baseline_increment",
+          "metric": "paired_delta_pearson_ic",
+          "min_days": 60,
+          "split": "development_check",
+          "threshold": 0.0
+        }
+      ],
+      "family_id": "rule.close_location",
+      "mechanism": "Change only the parent's trailing window.",
+      "modification": "window_only",
+      "parameters": {
+        "w": {
+          "meaning": "trailing sessions",
+          "values": [
+            3,
+            5,
+            10,
+            20
+          ]
+        }
+      },
+      "parents": [
+        "F4"
+      ],
+      "primary_horizon": 5,
+      "provenance": {
+        "kind": "deterministic_window_grid",
+        "llm_calls_per_point": 0,
+        "source": {
+          "path": "output/research/meta_v9_20260909/library_inventory.json",
+          "sha256": "91ef8fec1153132fe18e93ebe6306168246b07895031770faf375a4a55527ced"
+        }
+      },
+      "role": "return"
+    },
+    {
+      "arm": "llm_structure",
+      "available_fields": [
+        "open",
+        "close"
+      ],
+      "constraints": [
+        {
+          "left": "short",
+          "op": "lt",
+          "right": "long"
+        }
+      ],
+      "controls": [
+        {
+          "control_id": "unscaled_disagreement",
+          "expression_template": "rolling_mean(log(close / open) - log(open / lag(close, 1)), {short})",
+          "main_effect": false,
+          "purpose": "Remove volatility scaling while preserving both sessions."
+        },
+        {
+          "control_id": "scaled_total_return",
+          "expression_template": "rolling_mean(log(close / open) + log(open / lag(close, 1)), {short}) / (rolling_std(pct_change(close, 1), {long}))",
+          "main_effect": false,
+          "purpose": "Replace session disagreement by total return at the same windows."
+        }
+      ],
+      "expected_direction": 1,
+      "expected_relation": "Expected positive: sustained intraday-minus-overnight strength scaled by trailing volatility predicts next-open five-session returns; exact sign is learned on 2016-2018 only and then fixed.",
+      "expression_template": "(rolling_mean(log(close / open) - log(open / lag(close, 1)), {short})) / (rolling_std(pct_change(close, 1), {long}))",
+      "falsifiers": [
+        {
+          "comparator": "gt",
+          "control_refs": [
+            "unscaled_disagreement"
+          ],
+          "falsifier_id": "beyond_unscaled",
+          "interpretation": "A non-positive paired gain contradicts the proposed added information.",
+          "kind": "paired_ic_gain",
+          "metric": "paired_delta_pearson_ic",
+          "min_days": 60,
+          "split": "development_check",
+          "threshold": 0.0
+        },
+        {
+          "comparator": "gt",
+          "control_refs": [
+            "scaled_total_return"
+          ],
+          "falsifier_id": "beyond_total_return",
+          "interpretation": "A non-positive paired gain contradicts the proposed added information.",
+          "kind": "paired_ic_gain",
+          "metric": "paired_delta_pearson_ic",
+          "min_days": 60,
+          "split": "development_check",
+          "threshold": 0.0
+        }
+      ],
+      "family_id": "structure.session_disagreement_scaled",
+      "mechanism": "Within-day price discovery and overnight repricing can carry different persistence. Volatility scaling tests whether relative session disagreement adds information beyond a return-scale effect.",
+      "modification": "structural",
+      "parameters": {
+        "long": {
+          "meaning": "trailing reference regime",
+          "values": [
+            20,
+            40
+          ]
+        },
+        "short": {
+          "meaning": "recent daily pressure horizon",
+          "values": [
+            3,
+            5
+          ]
+        }
+      },
+      "parents": [
+        "F3",
+        "F7"
+      ],
+      "primary_horizon": 5,
+      "provenance": {
+        "agent": "/root/generation_control",
+        "generated_utc": "2026-09-12T15:16:12Z",
+        "kind": "llm_structural_proposal_saved_as_code_and_json",
+        "market_results_visible_this_run": false,
+        "model": "gpt-6-astra",
+        "reasoning_effort": "xhigh",
+        "receipt": "parent task must bind actual local agent session receipt; token cost not invented",
+        "source": "current V6 DSL, exact old-library definitions, and pre-existing design/postmortem reports"
+      },
+      "role": "return"
+    },
+    {
+      "arm": "llm_structure",
+      "available_fields": [
+        "close",
+        "amount"
+      ],
+      "constraints": [
+        {
+          "left": "short",
+          "op": "lt",
+          "right": "long"
+        }
+      ],
+      "controls": [
+        {
+          "control_id": "reversal",
+          "expression_template": "-(cs_rank(pct_change(close, {short})) - 0.5)",
+          "main_effect": true,
+          "purpose": "Recent return rank, unchanged cross-sectional pool."
+        },
+        {
+          "control_id": "activity",
+          "expression_template": "cs_rank(rolling_mean(amount, {short}) / rolling_mean(amount, {long})) - 0.5",
+          "main_effect": true,
+          "purpose": "Same activity state without the price interaction."
+        }
+      ],
+      "expected_direction": 1,
+      "expected_relation": "Expected positive interaction: relative high-activity losers outperform low-activity losers; retaining both main effects distinguishes interaction from ordinary reversal or liquidity exposure.",
+      "expression_template": "(-(cs_rank(pct_change(close, {short})) - 0.5)) * (cs_rank(rolling_mean(amount, {short}) / rolling_mean(amount, {long})) - 0.5)",
+      "falsifiers": [
+        {
+          "comparator": "gt",
+          "control_refs": [
+            "reversal",
+            "activity"
+          ],
+          "falsifier_id": "interaction_gain",
+          "interpretation": "A non-positive paired gain contradicts the proposed added information.",
+          "kind": "interaction_increment",
+          "metric": "paired_delta_pearson_ic",
+          "min_days": 60,
+          "split": "development_check",
+          "threshold": 0.0
+        }
+      ],
+      "family_id": "structure.activity_reversal",
+      "mechanism": "Temporary price pressure may reverse more strongly when recent traded amount is unusually high relative to its own trailing regime. Amount is a noisy activity proxy, not identified informed or institutional flow.",
+      "modification": "structural",
+      "parameters": {
+        "long": {
+          "meaning": "trailing reference regime",
+          "values": [
+            20,
+            40
+          ]
+        },
+        "short": {
+          "meaning": "recent daily pressure horizon",
+          "values": [
+            3,
+            5
+          ]
+        }
+      },
+      "parents": [
+        "F2",
+        "F6",
+        "HF0091"
+      ],
+      "primary_horizon": 5,
+      "provenance": {
+        "agent": "/root/generation_control",
+        "generated_utc": "2026-09-12T15:16:12Z",
+        "kind": "llm_structural_proposal_saved_as_code_and_json",
+        "market_results_visible_this_run": false,
+        "model": "gpt-6-astra",
+        "reasoning_effort": "xhigh",
+        "receipt": "parent task must bind actual local agent session receipt; token cost not invented",
+        "source": "current V6 DSL, exact old-library definitions, and pre-existing design/postmortem reports"
+      },
+      "role": "interaction"
+    },
+    {
+      "arm": "llm_structure",
+      "available_fields": [
+        "high",
+        "low",
+        "close"
+      ],
+      "constraints": [
+        {
+          "left": "short",
+          "op": "lt",
+          "right": "long"
+        }
+      ],
+      "controls": [
+        {
+          "control_id": "pressure",
+          "expression_template": "rolling_mean(where(high > low, (2 * close - high - low) / (high - low), 0), {short})",
+          "main_effect": true,
+          "purpose": "Remove compression, preserve close-location signal."
+        },
+        {
+          "control_id": "compression",
+          "expression_template": "1 - rolling_std(pct_change(close, 1), {short}) / rolling_std(pct_change(close, 1), {long})",
+          "main_effect": true,
+          "purpose": "Remove directional pressure, preserve volatility state."
+        }
+      ],
+      "expected_direction": 1,
+      "expected_relation": "Expected positive interaction between close-location pressure and volatility compression; B+pressure+compression is the required comparison before adding their product.",
+      "expression_template": "(rolling_mean(where(high > low, (2 * close - high - low) / (high - low), 0), {short})) * (1 - rolling_std(pct_change(close, 1), {short}) / rolling_std(pct_change(close, 1), {long}))",
+      "falsifiers": [
+        {
+          "comparator": "gt",
+          "control_refs": [
+            "pressure",
+            "compression"
+          ],
+          "falsifier_id": "interaction_gain",
+          "interpretation": "A non-positive paired gain contradicts the proposed added information.",
+          "kind": "interaction_increment",
+          "metric": "paired_delta_pearson_ic",
+          "min_days": 60,
+          "split": "development_check",
+          "threshold": 0.0
+        }
+      ],
+      "family_id": "structure.compressed_close_pressure",
+      "mechanism": "Repeated closes near the daily high may contain more persistent buying pressure when recent return volatility has compressed relative to its trailing regime. The interaction can fail if pressure already exhausts demand or compression signals illiquidity.",
+      "modification": "structural",
+      "parameters": {
+        "long": {
+          "meaning": "trailing reference regime",
+          "values": [
+            20,
+            40
+          ]
+        },
+        "short": {
+          "meaning": "recent daily pressure horizon",
+          "values": [
+            3,
+            5
+          ]
+        }
+      },
+      "parents": [
+        "F4",
+        "F7"
+      ],
+      "primary_horizon": 5,
+      "provenance": {
+        "agent": "/root/generation_control",
+        "generated_utc": "2026-09-12T15:16:12Z",
+        "kind": "llm_structural_proposal_saved_as_code_and_json",
+        "market_results_visible_this_run": false,
+        "model": "gpt-6-astra",
+        "reasoning_effort": "xhigh",
+        "receipt": "parent task must bind actual local agent session receipt; token cost not invented",
+        "source": "current V6 DSL, exact old-library definitions, and pre-existing design/postmortem reports"
+      },
+      "role": "interaction"
+    }
+  ],
+  "sha256": "374cd5a5f0023251b457cddc47d562fbfacd2963bdb4d13c856fb024fe899401"
+}

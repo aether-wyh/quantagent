@@ -1,0 +1,22 @@
+{
+  "template_family": "local_parquet",
+  "summary": "Backtest engine metrics: annual_return=28.24%, sharpe=1.24, max_drawdown=-302334.95, max_ddpercent=16.38%, gate(min_sharpe=0.90, min_return=12.00%, max_drawdown=25.00%), passed=True",
+  "annual_return": 0.2823555157871849,
+  "sharpe": 1.2375783799761826,
+  "max_drawdown": -302334.95125044,
+  "max_ddpercent": 0.16377933813149922,
+  "passed": true,
+  "stats": {
+    "capital": 1000000.0,
+    "end_balance": 1612296.048501595,
+    "total_return": 0.6122960485015949,
+    "annual_return": 0.2823555157871849,
+    "annual_volatility": 0.21199103025073363,
+    "sharpe_ratio": 1.2375783799761826,
+    "max_drawdown": -302334.95125044,
+    "max_ddpercent": -0.16377933813149922,
+    "total_trade_count": 689,
+    "win_rate": 0.7931034482758621,
+    "profit_loss_ratio": 0.5811971829278713
+  }
+}

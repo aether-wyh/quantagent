@@ -1,0 +1,54 @@
+# Credentials: only templates belong in Git.
+.env
+.env.*
+!.env.example
+!.env.*.example
+auth.json
+credentials.json
+*.pem
+*.key
+
+# Local Python environments and build products.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# Editors, browser sessions and temporary files.
+.vscode/
+.idea/
+.playwright-cli/
+node_modules/
+tmp/
+*.log
+*.bak*
+*.tmp
+*.zip
+
+# Research data and generated outputs; preserve source proposals and curated reports.
+/best_experiments/
+/factor_test_outputs/
+/experiment_traces/
+/output/
+/outputs/
+/data/
+/data_cache/
+/backtest_outputs/
+*.db
+*.sqlite
+*.sqlite3
+*.parquet
+*.npy
+*.npz
+*.pkl
+*.pickle
+*.pt
+*.pth

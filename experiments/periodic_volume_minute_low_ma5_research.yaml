@@ -1,0 +1,73 @@
+user_idea: |
+  从分钟量能 candidate_011 继续研究，不重新改写已经确认的基准规则。
+
+  当前基准：
+  - 保留 candidate_011 的核心条件：pulse5_return <= -0.006113537117903958。
+  - 第5批出现后，以 trigger_ts 为决定时点；下一分钟开盘买入，观察 trigger 后第20分钟收盘。
+  - 同一股票触发后20分钟内不重复选择。
+
+  本轮只研究“喷发日最低价与五日均线的距离”能否解释并改善基准结果。允许进入策略的字段只有：
+  - trigger_low_to_prev5_close_ma5_distance：截至 trigger_ts 的当日最低价，相对前5个完整交易日收盘价均值的距离。
+  - trigger_low_to_live_close_ma5_distance：截至 trigger_ts 的当日最低价，相对“前4个完整交易日收盘价加当日截至 trigger_ts 最新价”所得五日均值的距离。
+
+  analysis_only_full_day_low_to_close_ma5_distance 使用收盘后才能知道的完整日最低价，只能做原因分析和事后对照；
+  严禁把它写入策略、筛选条件、参数、权重计算或候选比较。
+
+  日期使用规则：
+  - 2022年只用于提出方向、产生分箱和选择阈值。
+  - 2023年只用于确认2022年选出的固定方向和阈值，不得反过来改阈值。
+  - 2024年是已经见过的开发期资料，只用于固定规则后的开发期评价，不得参与阈值选择。
+  - 本轮不得读取、请求或运行任何更晚时期，也不得启动最终测试。
+
+  研究时先在 candidate_011 已选事件内检查两个安全字段的缺失率、分布、分箱关系和单调性，
+  再判断是否值得增加一条简单条件。一次只增加或修改一个主要判断，不得同时堆入多项条件。
+  必须完成 low_ma5_distance_screening，报告基准与增加条件后的事件数、20分钟毛收益、
+  扣除0.16%成本后的平均收益、上涨比例和月度结果。
+
+  严禁把以下结果字段用于生成信号或选择条件：volume_hit、next_up、joint_minute_hit、
+  target_minute_return、forward_5m、forward_10m、forward_20m。它们只能评价已经选出的事件。
+
+  output_weights_df 必须使用 trigger_ts 作为明确的时间列；股票列使用候选文件中的 code；
+  同一时刻有多只股票时等权，股票权重合计不超过1，剩余为 cash。候选文件已经包含全市场，
+  不得另外缩小股票范围。
+
+experiment_name: periodic_volume_minute_low_ma5_research
+train_start: "2022-01-01"
+train_end: "2023-12-31"
+validate_start: "2024-01-01"
+validate_end: "2024-12-31"
+# 解析器要求提供独立的机器日期；恢复研究时会删除这些日期，且下方两个开关禁止运行最终测试。
+backtest_start: "2025-01-01"
+backtest_end: "2025-12-31"
+initial_research_before_strategy: false
+research_selection_start: "2022-01-01"
+research_selection_end: "2022-12-31"
+research_confirmation_start: "2023-01-01"
+research_confirmation_end: "2023-12-31"
+max_diagnostic_rounds: 4
+min_formal_candidates_before_stop: 12
+stop_required_diagnostics:
+  - feature_screening
+  - event_response_curve
+  - next_pulse_mechanism
+  - core_variant_comparison
+  - low_ma5_distance_screening
+bar_interval: "1m"
+backtest_mode: "event_parquet"
+event_horizon_minutes: 20
+event_cooldown_minutes: 20
+buy_cost: 0.0003
+sell_cost: 0.0008
+slippage: 0.00025
+capital: 1000000
+run_final_test: false
+allow_final_test: false
+universe:
+  - symbols: dataset:periodic_minute_events
+    asset: 中国股票
+    description: A股全市场；实际股票范围以仅含2022至2024年资料的新候选事件文件为准
+evaluation:
+  min_trade_count: 100
+  min_event_net_mean: 0.0
+  min_event_success_rate: 0.35
+  event_success_metric: gross_up_rate

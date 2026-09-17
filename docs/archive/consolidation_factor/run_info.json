@@ -1,0 +1,33 @@
+{
+  "qlib_root": "D:\\qlib_data\\qlib_bin",
+  "signal_start": "2010-01-01T00:00:00",
+  "signal_end": "2025-12-31T00:00:00",
+  "a_share_instrument_count": 5477,
+  "skipped_instrument_count": 0,
+  "continuous_double_volume_signal_count": 560029,
+  "retained_low_volatility_baseline_count": 62383,
+  "long_wick_signal_count": 302499,
+  "retained_long_wick_signal_count": 46818,
+  "retained_long_wick_hs300_signal_count": 17335,
+  "definition": {
+    "box_days": 30,
+    "box_excludes_two_volume_days": true,
+    "daily_volatility_return_count": 29,
+    "volume_multiple_each_day": 2.0,
+    "long_wick_is_second_day_high_minus_low": true,
+    "body_is_second_day_absolute_close_minus_open": true,
+    "bar_to_body_multiple_strictly_greater_than": 2.0,
+    "requires_positive_candle": false,
+    "requires_shadow_direction": false,
+    "entry": "信号日收盘确认，下一市场交易日开盘",
+    "exit": "信号日后的第1、3、5、10、20个市场交易日收盘",
+    "one_day_result": "只观察次日开盘到收盘；A股T+1下不可实际完成",
+    "excess_return": "股票未扣费价格收益减去沪深300同期收益"
+  },
+  "costs": {
+    "buy_cost": 0.0003,
+    "sell_cost": 0.0008,
+    "slippage_each_side": 0.00025
+  },
+  "benchmark_code": "SH000300"
+}

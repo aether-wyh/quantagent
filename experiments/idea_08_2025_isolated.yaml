@@ -1,0 +1,70 @@
+user_idea: |
+  基于 idea_08 的更新版沪深300多因子策略，每日开盘调仓。
+
+  对执行日 T，只允许使用 T-1 及更早的资料：
+  - close_prev = close.shift(1)
+  - high_prev = high.shift(1)
+  - low_prev = low.shift(1)
+  - volume_prev = volume.shift(1)
+
+  用以上资料计算四个等权因子：
+  1. 过去5日日均成交额对数：log(close_prev * volume_prev) 的5日均值；
+  2. 20日动量：close_prev / close_prev.shift(20) - 1；
+  3. 低波动：close_prev 日收益率过去20日标准差的负值；
+  4. 20日价格位置：(close_prev - low_prev的20日最低值) / (high_prev的20日最高值 - low_prev的20日最低值)。
+
+  每日只在当时有效的沪深300历史成分股中排名。第4版只做一个改动：上一执行日已持有、当日仍是有效成分且资料完整的股票，只要综合得分排名仍在前30名就保留；其余股票退出，再按当日得分从高到低补足到10只。保留和补入后的股票等权持有。
+  若沪深300当时成分股等权平均的 close_prev 低于其20日均线，则只投入50%资金，剩余为现金。
+  单只股票从可见的前一日收盘价计算亏损超过8%时，下一交易日开盘清仓。
+
+  这是一次中断后的续跑。此前已生成3个策略版本；第3版通过了未来资料、权重和历史成分检查，但开发期3段全部失败：年化收益分别为-9.97%、0.34%、-12.70%，夏普分别为-0.82、-0.10、-0.55，最大回撤分别为11.57%、7.56%、27.83%；共6129笔交易。费用加倍后的中位夏普为-0.93，延迟一天后的中位夏普为0.13。第4版因此只加入上述前30名保留规则，其他规则不变。续跑最多再生成3个策略版本，总数不得超过6。
+
+  开发期合格标准已经预先固定，不存在“标准缺失”：
+  - 把2023—2024按时间先后分成3段，段间留出10个真实交易日；
+  - 每段按年化收益不低于12%、夏普不低于0.90、最大回撤不超过25%判断；
+  - 分段通过比例不低于67%，最差一段夏普不低于0，且每段都必须跑赢现金；
+  - 费用翻倍后的各段夏普中位数不低于0；执行推迟一个交易日后的中位数也不低于0。
+
+  训练期可以确定规则和参数，开发期固定规则后反复检验。2025年最终时期不得用于选参数、
+  改条件或生成下一轮策略；只有开发期达到下方标准后才允许检查一次，检查后立即结束。
+  不得使用 shift(-n)、未来收益、未来成分变更日期或执行日收盘后才知道的资料。
+  output_weights 必须按系统每次提供的实际验证资料日期生成，不得把 2023—2024 写死在代码中；
+  冻结后的同一份代码必须能在不改参数和规则的情况下直接处理 2025 最终资料。
+  策略代码不得自行读取、拒绝或放行2025；资料是否提供以及是否允许最终测试完全由系统控制。
+
+experiment_name: idea_08_2025_isolated
+train_start: "2020-01-01"
+train_end: "2022-12-31"
+validate_start: "2023-01-01"
+validate_end: "2024-12-31"
+development_start: "2023-01-01"
+development_end: "2024-12-31"
+backtest_start: "2025-01-01"
+backtest_end: "2025-12-31"
+final_test_start: "2025-01-01"
+final_test_end: "2025-12-31"
+universe:
+  - symbols: hs300
+    asset: 中国股票
+    description: 沪深300历史成分股，按每个交易日的有效区间筛选
+evaluation:
+  min_sharpe_ratio: 0.90
+  max_drawdown: 0.25
+  min_return_rate: 0.12
+buy_cost: 0.0003
+sell_cost: 0.0008
+slippage: 0.00025
+capital: 1000000
+development_folds: 3
+gap_trading_days: 10
+min_development_fold_days: 20
+walk_forward_development: true
+run_cost_stress: true
+run_delay_stress: true
+require_all_folds_beat_cash: true
+min_fold_pass_ratio: 0.67
+min_worst_fold_sharpe: 0.0
+min_cost_stress_sharpe: 0.0
+min_delay_stress_sharpe: 0.0
+run_final_test: false
+allow_final_test: false

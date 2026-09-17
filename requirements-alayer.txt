@@ -1,0 +1,8 @@
+# Additional direct dependencies used by the A-layer core.
+# Combine with pyproject.toml and requirements-meta.txt as needed.
+# This is an import inventory, not a tested or frozen environment lockfile.
+numpy
+pandas
+pyarrow
+lightgbm
+scikit-learn
