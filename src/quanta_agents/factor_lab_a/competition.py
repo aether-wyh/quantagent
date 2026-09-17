@@ -142,28 +142,59 @@ def benchmark_label1(dates: pd.DatetimeIndex, index="csi500", source: str | None
 
 
 # ----------------------------------------------------------------------------- lot rounding (A15 item 10)
-def round_lots(w: np.ndarray, w_pre: np.ndarray, px: np.ndarray, nav_b: float, lots: int, min_trade_mv: float, spread: bool = True) -> np.ndarray:
+def round_lots(w: np.ndarray, w_pre: np.ndarray, px: np.ndarray, nav_b: float, lots: int, min_trade_mv: float, spread: bool = True,
+               pref: np.ndarray | None = None, pref_k: float = 0.0, group_below: bool = False, hyst: float = 0.0) -> np.ndarray:
     """Turn target weights (of a bucket with NAV nav_b) into whole-lot weights at price px (raw next-open). A change
     smaller than min_trade_mv keeps the held value (no-trade band, like the live target builder); targets below half a
-    lot are dropped (cash). Unpriced names (no bar) keep their target unchanged."""
+    lot are dropped (cash). Unpriced names (no bar) keep their target unchanged.
+    pref (score percentile in [0, 1]) with pref_k > 0 makes the rounding score-aware (A17 item 4): the lot count is
+    round(target_lots + pref_k * (pref - 0.5)), so with pref_k = 1 the best names round up and the worst round down;
+    the extra lots and the budget peel follow the same preference.
+    group_below (A17 item 4): the names whose target is below half a lot (high-priced stocks at a small account) are not
+    all dropped; single lots of them are bought - held ones first, then the most affordable - until the value of the
+    group is spent, so the bucket keeps its exposure to the high-priced group instead of betting against it."""
     ok = np.isfinite(px) & (px > 0)
+    adj = pref_k * (np.where(np.isfinite(pref), pref, 0.5) - 0.5) if (pref is not None and pref_k > 0) else np.zeros(len(w))
     tgt = w * nav_b; held = w_pre * nav_b
-    keep = (np.abs(tgt - held) < min_trade_mv) & (tgt > 0) & (held > 0)
-    tgt = np.where(keep, held, tgt)
     lot_mv = np.where(ok, lots * px, np.nan)
+    # hyst (A17 item 4): the no-trade band is at least `hyst` lots of the name, so an expensive stock whose target hovers
+    # around x.5 lots does not flip a whole lot back and forth (the CNY band alone is only a fraction of such a lot)
+    band = np.maximum(min_trade_mv, hyst * np.where(ok, lot_mv, 0.0)) if hyst > 0 else min_trade_mv
+    keep = (np.abs(tgt - held) < band) & (tgt > 0) & (held > 0)
+    tgt = np.where(keep, held, tgt)
     # targets below half a lot are dropped and their value spread over the kept names of the bucket (as the live
     # target builder does), so the bucket weight and the 82% / 92% checks hold after rounding
-    below = ok & (tgt > 0) & (tgt < 0.5 * lot_mv)
-    kept = ok & (tgt >= 0.5 * lot_mv)
+    units = np.where(ok, tgt / np.where(ok, lot_mv, 1.0), 0.0) + np.where(tgt > 0, adj, 0.0)
+    below = ok & (tgt > 0) & (units < 0.5)
+    kept = ok & (tgt > 0) & (units >= 0.5)
     traded = kept & ~keep                       # names inside the no-trade band are left exactly as held
     tgt = np.where(below, 0.0, tgt)
-    sh = np.where(kept, np.round(tgt / np.where(ok, lot_mv, 1.0)) * lots, 0.0)
+    sh = np.where(kept, np.maximum(np.round(units), 1.0) * lots, 0.0)
+    sh = np.where(kept & keep, np.round(tgt / np.where(ok, lot_mv, 1.0)) * lots, sh)      # held-as-is names: exactly the held lots
+    grp = np.zeros(len(w), bool)
+    if group_below and below.any():
+        # price bands keep the exposure band by band (a single pool would spend everything on the cheapest sub-lot names
+        # and still leave the most expensive stocks at zero); inside a band the largest index weights come first, held
+        # names are favoured (x1.5) to limit churn; what a band cannot spend is carried to the next band up
+        v_grp = 0.0; tv = w * nav_b
+        for lo_, hi_ in ((0.0, 80.0), (80.0, 160.0), (160.0, 320.0), (320.0, np.inf)):
+            gb = below & (px >= lo_) & (px < hi_)
+            if not gb.any():
+                continue
+            v_grp += float(tv[gb].sum())
+            key = np.where(gb, tv + np.where(held > 0, 1e15, 0.0), -np.inf)     # held names first, then the largest index weights
+            for j in np.argsort(-key):
+                if not gb[j]:
+                    break
+                if v_grp >= (0.2 if held[j] > 0 else 0.6) * lot_mv[j]:            # hysteresis: a held lot is kept longer than a new one is bought
+                    sh[j] = lots; grp[j] = True; v_grp -= lot_mv[j]
+        tgt = np.where(grp, lot_mv, tgt)                       # bought on purpose: no rounding excess, peeled last
     pxz = np.where(ok, px, 0.0)
     # the value of the dropped sub-lot names is spread as at most ONE extra lot per traded name (largest targets first);
     # a proportional re-scaling would compound day after day into a few names, one lot per name cannot
-    remaining = float(np.where(below, w * nav_b, 0.0).sum()) if spread else 0.0
+    remaining = (max(v_grp, 0.0) if group_below and below.any() else float(np.where(below, w * nav_b, 0.0).sum())) if spread else 0.0
     if remaining > 0 and traded.any():
-        for j in np.argsort(-np.where(traded, tgt, -np.inf)):
+        for j in np.argsort(-np.where(traded, tgt if not adj.any() else adj, -np.inf)):
             if not traded[j] or remaining < lot_mv[j]:
                 if not traded[j]:
                     break
@@ -176,7 +207,9 @@ def round_lots(w: np.ndarray, w_pre: np.ndarray, px: np.ndarray, nav_b: float, l
     for _ in range(len(sh)):
         if (sh * pxz).sum() <= budget + 1e-6:
             break
-        excess = np.where(sh > 0, sh * pxz - tgt, -np.inf)
+        excess = np.where(sh > 0, sh * pxz - tgt - adj * np.where(ok, lot_mv, 0.0), -np.inf)
+        if group_below:                          # price-neutral peel: the largest rounding excess in lots, not in CNY (which always hits the expensive names)
+            excess = np.where(sh > 0, excess / np.where(ok, lot_mv, 1.0), -np.inf)
         j = int(np.argmax(excess))
         if not np.isfinite(excess[j]):
             break
@@ -187,7 +220,7 @@ def round_lots(w: np.ndarray, w_pre: np.ndarray, px: np.ndarray, nav_b: float, l
 
 # ----------------------------------------------------------------------------- bucket book
 def bucket_book(score: np.ndarray, label1: np.ndarray, member: np.ndarray, buyable: np.ndarray, dates: pd.DatetimeIndex,
-                n_enter: int, n_keep: int, min_hold=1, weighting="drift", lot: dict | None = None) -> dict:
+                n_enter: int, n_keep: int, min_hold=1, weighting="drift", lot: dict | None = None, keep_w: bool = False) -> dict:
     """Long book inside one bucket with count-based hysteresis. lot: {'px': dates x codes raw next-open, 'nav': bucket NAV,
     'lots': lot size, 'min_trade_mv': no-trade band in CNY} switches on whole-lot execution (A15 item 10).
     score: (dates x codes) float, higher = better, NaN where unknown. member: bucket membership (force-sell outside).
@@ -199,6 +232,7 @@ def bucket_book(score: np.ndarray, label1: np.ndarray, member: np.ndarray, buyab
     w = np.zeros(n_codes)
     port = np.zeros(n_dates); bench = np.zeros(n_dates); turn = np.zeros(n_dates); cnt = np.zeros(n_dates); n_mem = np.zeros(n_dates)
     maxw = np.zeros(n_dates); inv = np.zeros(n_dates)
+    W = np.zeros((n_dates, n_codes), np.float32) if keep_w else None; WP = np.zeros((n_dates, n_codes), np.float32) if keep_w else None
     for t in range(n_dates):
         mem = member[t]
         scored = np.isfinite(score[t]) & mem
@@ -258,14 +292,20 @@ def bucket_book(score: np.ndarray, label1: np.ndarray, member: np.ndarray, buyab
         port[t] = (w * lab[t]).sum()
         u = mem.astype(np.float64); bench[t] = (u * lab[t]).sum() / max(u.sum(), 1)
         turn[t] = 0.5 * np.abs(w - w_pre).sum(); cnt[t] = held.sum(); maxw[t] = w.max() if w.size else 0.0; inv[t] = w.sum()
-    return {"portfolio": pd.Series(port, index=dates), "bucket_ew": pd.Series(bench, index=dates), "turnover": pd.Series(turn, index=dates),
-            "count": pd.Series(cnt, index=dates), "members": pd.Series(n_mem, index=dates), "live": pd.Series((cnt > 0) & (n_mem > 0), index=dates),
-            "max_weight": pd.Series(maxw, index=dates), "invested": pd.Series(inv, index=dates)}
+        if keep_w:
+            W[t] = w; WP[t] = w_pre
+    out = {"portfolio": pd.Series(port, index=dates), "bucket_ew": pd.Series(bench, index=dates), "turnover": pd.Series(turn, index=dates),
+           "count": pd.Series(cnt, index=dates), "members": pd.Series(n_mem, index=dates), "live": pd.Series((cnt > 0) & (n_mem > 0), index=dates),
+           "max_weight": pd.Series(maxw, index=dates), "invested": pd.Series(inv, index=dates)}
+    if keep_w:
+        out["weights"] = W; out["weights_pre"] = WP           # bucket-level weights after / before today's trades (A17 item 4)
+    return out
 
 
 def tilted_bucket_book(score: np.ndarray, label1: np.ndarray, member: np.ndarray, buyable: np.ndarray, cap: np.ndarray, dates: pd.DatetimeIndex,
                        gamma=1.0, x_out=0.2, x_in=0.35, y_in=0.9, y_out=0.7, tau=1.0, return_final=False, excl_score: np.ndarray | None = None,
-                       over_score: np.ndarray | None = None, lot: dict | None = None) -> dict:
+                       over_score: np.ndarray | None = None, lot: dict | None = None, keep_w: bool = False, veto: np.ndarray | None = None,
+                       ovn: np.ndarray | None = None, regroup: np.ndarray | None = None) -> dict:
     """Enhanced-index bucket: every member is held at cap^gamma weight (gamma=1 cap-weighted, 0 equal) x multiplier;
     multiplier 0 for names in the exclusion state (entered when the in-bucket score percentile < x_out, left when
     > x_in), 1+tau in the overweight state (entered at >= y_in, left below y_out), 1 otherwise. States carry
@@ -277,6 +317,7 @@ def tilted_bucket_book(score: np.ndarray, label1: np.ndarray, member: np.ndarray
     w = np.zeros(n_codes)
     port = np.zeros(n_dates); bench = np.zeros(n_dates); turn = np.zeros(n_dates); cnt = np.zeros(n_dates); n_mem = np.zeros(n_dates)
     maxw = np.zeros(n_dates); inv = np.zeros(n_dates)
+    W = np.zeros((n_dates, n_codes), np.float32) if keep_w else None; WP = np.zeros((n_dates, n_codes), np.float32) if keep_w else None
     def _pct(row, mem):
         scored = np.isfinite(row) & mem
         out_ = np.full(n_codes, np.nan)
@@ -301,9 +342,25 @@ def tilted_bucket_book(score: np.ndarray, label1: np.ndarray, member: np.ndarray
         over = np.where(has_o, np.where(over, po >= y_out, po >= y_in), over) & mem
         base = np.where(mem & np.isfinite(cap[t]) & (cap[t] > 0), np.power(np.where(np.isfinite(cap[t]) & (cap[t] > 0), cap[t], 1.0), gamma), 0.0)
         mult = np.where(excl, 0.0, np.where(over, 1.0 + tau, 1.0))
+        if veto is not None:                     # additive veto (A17 item 3): zero weight on top of the model's own exclusions
+            mult = np.where(veto[t], 0.0, mult)
         # an unbuyable name (limit-up open) cannot be bought: keep its drifted weight instead of the target
         target = base * mult
+        if regroup is not None:
+            # A17: the weight freed by exclusions stays inside the name's own style group (e.g. turnover quintile), so the
+            # bucket keeps the index's group weights instead of drifting toward the groups with fewer exclusions
+            gt = regroup[t]
+            for gidv in np.unique(gt[(gt >= 0) & (base > 0)]):
+                gm = gt == gidv; tb = base[gm].sum(); tt = target[gm].sum()
+                if tt > 0 and tb > 0:
+                    target[gm] *= tb / tt
         s = target.sum(); target = target / s if s > 0 else target
+        if ovn is not None:
+            # A17: the live process fixes SHARES on the close of t and trades them at the next open, so the weights right
+            # after the trade are the close-based target drifted by the overnight return. Without this the backtest
+            # "rebalances back" to close weights at every open - a mechanical fade of the overnight gap that the live
+            # process never does (about 1% a day of turnover in a pure cap-weighted bucket)
+            g_ = target * (1.0 + np.where(np.isfinite(ovn[t]), ovn[t], 0.0)); s_ = g_.sum(); target = g_ / s_ if s_ > 0 else target
         grow = w * (1 + (lab[t - 1] if t > 0 else 0.0)); w_pre = grow / grow.sum() if grow.sum() > 0 else grow
         # a name that cannot be bought today (limit-up open) is pinned at its drifted weight and left out of the
         # renormalisation, so the pinned weight is not scaled back up (review fix H3)
@@ -313,13 +370,17 @@ def tilted_bucket_book(score: np.ndarray, label1: np.ndarray, member: np.ndarray
             target = np.where(pin, w_pre, target * (free / rest) if rest > 0 else 0.0)
         w = target
         if lot is not None:
-            w = round_lots(w, w_pre, lot["px"][t], lot["nav"], lot["lots"], lot["min_trade_mv"])
+            w = round_lots(w, w_pre, lot["px"][t], lot["nav"], lot["lots"], lot["min_trade_mv"], pref=pct, pref_k=float(lot.get("pref_k", 0.0)), group_below=bool(lot.get("group_below", False)), hyst=float(lot.get("hyst", 0.0)))
         port[t] = (w * lab[t]).sum()
         u = mem.astype(np.float64); bench[t] = (u * lab[t]).sum() / max(u.sum(), 1)
         turn[t] = 0.5 * np.abs(w - w_pre).sum(); cnt[t] = (w > 0).sum(); n_mem[t] = mem.sum(); maxw[t] = w.max() if w.size else 0.0; inv[t] = w.sum()
+        if keep_w:
+            W[t] = w; WP[t] = w_pre
     out = {"portfolio": pd.Series(port, index=dates), "bucket_ew": pd.Series(bench, index=dates), "turnover": pd.Series(turn, index=dates),
            "count": pd.Series(cnt, index=dates), "members": pd.Series(n_mem, index=dates), "live": pd.Series((cnt > 0) & (n_mem > 0), index=dates),
            "max_weight": pd.Series(maxw, index=dates), "invested": pd.Series(inv, index=dates)}
+    if keep_w:
+        out["weights"] = W; out["weights_pre"] = WP
     if return_final:
         out["final_weights"] = w; out["final_excluded"] = excl; out["final_overweight"] = over; out["final_pct"] = pct
     return out
@@ -539,6 +600,12 @@ def two_bucket_book(pred: pd.DataFrame, panel, mem: dict, bench1: np.ndarray, cf
     label1 = panel["label_1"].to_numpy(np.float64)
     base = trading_mask(panel); mb = buyable_mask(panel, base)
     m500 = base & mem["csi500"]; moth = base & mem["union"] & ~mem["csi500"]
+    if cfg.get("oth_universe"):                  # A17: other bucket drawn from one index only (e.g. "csi1000": no CSI300 large caps)
+        moth = moth & mem[cfg["oth_universe"]]
+    if cfg.get("oth_cap_band"):                  # A17: keep only the other-bucket names whose size sits inside the CSI500 size range (quantiles of the members' caps)
+        capx = panel[cfg.get("cap_field", "float_market_cap")]; qlo, qhi = cfg["oth_cap_band"]
+        lo_ = capx.where(m500).quantile(float(qlo), axis=1); hi_ = capx.where(m500).quantile(float(qhi), axis=1)
+        moth = moth & capx.ge(lo_, axis=0) & capx.le(hi_, axis=0)
     # score percentile is computed inside the whole union so that the two buckets share one smoothing history
     sc_df = smooth_scores(pred, base & mem["union"], cfg["smooth"])
     q = int(cfg.get("neutral_q", 0) or 0)
@@ -553,6 +620,7 @@ def two_bucket_book(pred: pd.DataFrame, panel, mem: dict, bench1: np.ndarray, cf
             s2 = neutral_scores(panel, s2, m500, moth, cfg.get("neutral_field", "float_market_cap"), q)
         return s2.to_numpy(np.float32)
     n500 = int(cfg["n500"]); noth = int(cfg["noth"]); km = float(cfg["keep_mult"])
+    kw = bool(cfg.get("keep_weights", False))             # keep daily bucket weights (execution study, A17 item 4)
     lot500 = lototh = None
     lot_nav = float(cfg.get("lot_nav", 0) or 0)
     if lot_nav > 0:
@@ -560,7 +628,7 @@ def two_bucket_book(pred: pd.DataFrame, panel, mem: dict, bench1: np.ndarray, cf
             raise KeyError("lot rounding needs the panel field raw_open (scripts/pv2_raw_open.py)")
         px = panel["raw_open"].shift(-1).to_numpy(np.float64)          # executed at the next open, raw price
         lots = int(cfg.get("lots", 100)); mt = float(cfg.get("lot_min_trade", 0.001)) * lot_nav
-        lot500 = {"px": px, "nav": float(cfg["w500"]) * lot_nav, "lots": lots, "min_trade_mv": mt}
+        lot500 = {"px": px, "nav": float(cfg["w500"]) * lot_nav, "lots": lots, "min_trade_mv": mt, "pref_k": float(cfg.get("lot_pref_k", 0.0) or 0.0), "group_below": bool(cfg.get("lot_group_below", False)), "hyst": float(cfg.get("lot_hyst", 0.0) or 0.0)}
         lototh = {"px": px, "nav": float(cfg["woth"]) * lot_nav, "lots": lots, "min_trade_mv": mt}
     if cfg.get("book", "concentrated") == "tebudget":   # A15 item 7: optimised enhanced bucket under a tracking-error budget
         cap = panel[cfg.get("cap_field", "float_market_cap")].to_numpy(np.float64)
@@ -571,12 +639,24 @@ def two_bucket_book(pred: pd.DataFrame, panel, mem: dict, bench1: np.ndarray, cf
                                     kappa=float(cfg.get("te_kappa", 0.0)), max_tilt=(float(cfg["te_max_tilt"]) if cfg.get("te_max_tilt") else None), lot=lot500)
     elif cfg.get("book", "concentrated") == "enhanced":
         cap = panel[cfg.get("cap_field", "float_market_cap")].to_numpy(np.float64)
+        if cfg.get("cap_mult"):                  # A17: implied index-weight multipliers (scripts/pv4_index_weights.py), date x code, missing = 1
+            cm = pd.read_parquet(cfg["cap_mult"]); cm.index = pd.DatetimeIndex(cm.index)
+            cap = cap * cm.reindex(index=dates, columns=panel.codes).ffill().fillna(1.0).to_numpy(np.float64)
         ex_np = _second(excl_pred); ov_np = _second(over_pred)
+        rg_np = None
+        if cfg.get("regroup_field"):             # quantile groups of a style field inside the CSI500 bucket, per date
+            sf = style_field(panel, cfg["regroup_field"]).where(m500)
+            rg_np = np.ceil(sf.rank(axis=1, pct=True) * int(cfg.get("regroup_q", 5))).fillna(-1).to_numpy(np.int16)
+        veto_np = None
+        if cfg.get("veto_mask"):                 # parquet date x code, non-zero = vetoed that day (e.g. predicted index deletions)
+            vm = pd.read_parquet(cfg["veto_mask"]); vm.index = pd.DatetimeIndex(vm.index)
+            veto_np = (vm.reindex(index=dates, columns=panel.codes).fillna(0).to_numpy() != 0)
         b500 = tilted_bucket_book(sc, label1, m500.to_numpy(bool), mb.to_numpy(bool), cap, dates, gamma=float(cfg["gamma"]), x_out=float(cfg["x_out"]), x_in=float(cfg["x_in"]),
-                                  y_in=float(cfg["y_in"]), y_out=float(cfg["y_out"]), tau=float(cfg["tau"]), excl_score=ex_np, over_score=ov_np, lot=lot500)
+                                  y_in=float(cfg["y_in"]), y_out=float(cfg["y_out"]), tau=float(cfg["tau"]), excl_score=ex_np, over_score=ov_np, lot=lot500, keep_w=kw, veto=veto_np, regroup=rg_np,
+                                  ovn=((panel["open"].shift(-1) / panel["close"] - 1).to_numpy(np.float64) if cfg.get("shares_at_close", False) else None))
     else:
-        b500 = bucket_book(sc, label1, m500.to_numpy(bool), mb.to_numpy(bool), dates, n500, int(round(km * n500)), cfg["min_hold"], cfg["weighting"], lot=lot500)
-    both = bucket_book(sc, label1, moth.to_numpy(bool), mb.to_numpy(bool), dates, noth, int(round(km * noth)), cfg["min_hold"], cfg["weighting"], lot=lototh)
+        b500 = bucket_book(sc, label1, m500.to_numpy(bool), mb.to_numpy(bool), dates, n500, int(round(km * n500)), cfg["min_hold"], cfg["weighting"], lot=lot500, keep_w=kw)
+    both = bucket_book(sc, label1, moth.to_numpy(bool), mb.to_numpy(bool), dates, noth, int(round(km * noth)), cfg["min_hold"], cfg["weighting"], lot=lototh, keep_w=kw)
     w5, wo = float(cfg["w500"]), float(cfg["woth"])
     port = w5 * b500["portfolio"] + wo * both["portfolio"]
     turn = w5 * b500["turnover"] + wo * both["turnover"]

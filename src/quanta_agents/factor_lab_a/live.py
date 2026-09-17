@@ -302,9 +302,13 @@ def build_target(panel_dir: str, prediction_path: str, holdings_path: str | None
             grp = panel[nf]
         grp = grp.reindex(index=pred.index, columns=panel.codes)
         m500_w = base & mem["csi500"].reindex(index=pred.index); moth_w = base & mem["union"].reindex(index=pred.index) & ~mem["csi500"].reindex(index=pred.index)
+        if cfg.get("oth_universe"):              # A17 (opt-in): other bucket drawn from one index only, same as competition.two_bucket_book
+            moth_w = moth_w & mem[cfg["oth_universe"]].reindex(index=pred.index)
         sc = cp.cap_neutral_within(sc, grp, m500_w, q).where(m500_w, cp.cap_neutral_within(sc, grp, moth_w, q))
     row = sc.iloc[-1]; t = pred.index[-1]
     m500 = (base & mem["csi500"]).loc[t]; moth = (base & mem["union"] & ~mem["csi500"]).loc[t]
+    if cfg.get("oth_universe"):
+        moth = moth & mem[cfg["oth_universe"]].reindex(index=base.index).loc[t]
     # A15 item 10: style exposure of the raw score on the as-of date (Spearman inside CSI500 / union) and the 20-session
     # mean of the score-vs-log-cap correlation inside CSI500 (the registered risk indicator: report when < -0.3)
     style = {}
@@ -405,6 +409,9 @@ def build_target(panel_dir: str, prediction_path: str, holdings_path: str | None
         win = sc.iloc[-state_window:]
         mwin = (base & mem["csi500"].reindex(index=pred.index)).loc[win.index].to_numpy(bool)
         capwin = panel[cfg.get("cap_field", "float_market_cap")].reindex(index=win.index, columns=panel.codes).to_numpy(np.float64)
+        if cfg.get("cap_mult"):                  # A17 (opt-in): implied index-weight multipliers, date x code, missing = 1 (same as competition.two_bucket_book)
+            cm = pd.read_parquet(cfg["cap_mult"]); cm.index = pd.DatetimeIndex(cm.index)
+            capwin = capwin * cm.reindex(index=win.index, columns=panel.codes).ffill().fillna(1.0).to_numpy(np.float64)
         r = cp.tilted_bucket_book(win.to_numpy(np.float32), np.zeros(win.shape), mwin, np.ones(win.shape, bool), capwin, win.index, gamma=float(cfg["gamma"]),
                                   x_out=float(cfg["x_out"]), x_in=float(cfg["x_in"]), y_in=float(cfg["y_in"]), y_out=float(cfg["y_out"]), tau=float(cfg["tau"]), return_final=True)
         wfin = pd.Series(r["final_weights"], index=panel.codes); excl = pd.Series(r["final_excluded"], index=panel.codes); over = pd.Series(r["final_overweight"], index=panel.codes)
@@ -437,8 +444,30 @@ def build_target(panel_dir: str, prediction_path: str, holdings_path: str | None
         keep = tgt >= 0.5 * lot_mv
         dropped = tgt[~keep].sum()
         budget = float(tgt.sum())                      # the bucket's full target value, before sub-lot names are dropped
+        tgt0 = tgt.copy()
         tgt = np.where(keep, tgt, 0.0)
         sh = np.where(keep & np.isfinite(px) & (px > 0), np.round(tgt / np.maximum(lot_mv, 1e-9)) * lots, 0.0)
+        # A17 item 4 (opt-in, cfg['lot_group_below']): the sub-lot names of the enhanced bucket (high-priced stocks at a small
+        # account) are not all dropped; band by band single lots are bought - held names first, then the largest index
+        # weights - until the band's value is spent, so the book does not bet against the high-priced group (same rule as
+        # competition.round_lots(group_below=True))
+        group_mode = bool(cfg.get("lot_group_below", False)) and b == "csi500" and cfg.get("book", "concentrated") != "concentrated"
+        if group_mode:
+            held_b = df.loc[sel, "held_mv"].to_numpy(np.float64)
+            below = (~keep) & (tgt0 > 0) & np.isfinite(px) & (px > 0)
+            v_grp = 0.0; grp = np.zeros(len(tgt), bool)
+            for lo_, hi_ in ((0.0, 80.0), (80.0, 160.0), (160.0, 320.0), (320.0, np.inf)):
+                gb = below & (px >= lo_) & (px < hi_)
+                if not gb.any():
+                    continue
+                v_grp += float(tgt0[gb].sum())
+                key = np.where(gb, tgt0 + np.where(held_b > 0, 1e15, 0.0), -np.inf)
+                for j in np.argsort(-key):
+                    if not gb[j]:
+                        break
+                    if v_grp >= (0.2 if held_b[j] > 0 else 0.6) * lot_mv[j]:
+                        sh[j] = lots; grp[j] = True; v_grp -= lot_mv[j]
+            tgt = np.where(grp, lot_mv, tgt); dropped = max(v_grp, 0.0)
         # A15 item 10: the dropped sub-lot value buys at most one extra lot per kept name (largest targets first) instead of
         # a proportional re-scaling, which compounds into a few names over consecutive days
         remaining = float(dropped) if (b == "csi500" and cfg.get("book", "concentrated") != "concentrated") else 0.0
@@ -449,8 +478,10 @@ def build_target(panel_dir: str, prediction_path: str, holdings_path: str | None
                 if np.isfinite(lot_mv[j]) and lot_mv[j] > 0 and remaining >= lot_mv[j]:
                     sh[j] += lots; remaining -= lot_mv[j]
         # never spend more than the bucket's budget: peel single lots off the names with the largest rounding excess
-        while (sh * px).sum() > budget + 1e-6:
+        while (np.nansum(sh * px) if group_mode else (sh * px).sum()) > budget + 1e-6:
             excess = np.where(sh > 0, sh * px - tgt, -np.inf)
+            if group_mode:                             # price-neutral peel: largest rounding excess in lots, not in CNY
+                excess = np.where(sh > 0, excess / np.maximum(lot_mv, 1e-9), -np.inf)
             j = int(np.argmax(excess))
             if not np.isfinite(excess[j]):
                 break

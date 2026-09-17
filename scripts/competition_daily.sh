@@ -63,6 +63,14 @@ fi
 CFG_C3A='{"book":"enhanced","gamma":1.0,"x_out":0.2,"x_in":0.35,"y_in":0.9,"y_out":0.75,"tau":0.0,"cap_field":"float_market_cap","smooth":5,"w500":0.85,"woth":0.13,"noth":110,"keep_mult":4.0,"neutral_q":5,"neutral_field":"turnover20"}'
 CFG_C3B='{"smooth":5,"n500":80,"keep_mult":4.0,"w500":0.84,"woth":0.14,"noth":55}'
 log "shadow c3-A"; $PY -m quanta_agents.factor_lab_a.live target --panel-dir $LIVE/panel --prediction $LIVE/pred_live.parquet --nav $NAV --out $LIVE/targets/shadow_c3A_enhanced_85_13_n110 --cfg "$CFG_C3A" | grep -E '"asof"|target_invested|target_share500|n_orders'
+CFG_C3AG='{"book":"enhanced","gamma":1.0,"x_out":0.2,"x_in":0.35,"y_in":0.9,"y_out":0.75,"tau":0.0,"cap_field":"float_market_cap","smooth":5,"w500":0.85,"woth":0.13,"noth":110,"keep_mult":4.0,"neutral_q":5,"neutral_field":"turnover20","lot_group_below":true}'
+log "shadow c3-A (price-neutral lot rounding, A17 item 4)"; $PY -m quanta_agents.factor_lab_a.live target --panel-dir $LIVE/panel --prediction $LIVE/pred_live.parquet --nav $NAV --out $LIVE/targets/shadow_c3A_grouplots_85_13_n110 --cfg "$CFG_C3AG" | grep -E '"asof"|target_invested|target_share500|n_orders' || log "shadow c3-A grouplots failed (ignored)"
+# A17 candidate c4: turnover-neutral-label scores + c3-A rule + implied index weights + CSI1000-only other bucket + price-neutral lot rounding
+if [ -f $LIVE/pred_live_turnlabel.parquet ]; then
+  log "implied index weights"; $PY scripts/pv4_index_weights.py --panel-dir $LIVE/panel --out-dir $LIVE/indexw --alphas 1 --write-alpha 1 --tag _a1 2>/dev/null | tail -1 || log "implied index weights failed (ignored)"
+  CFG_C4='{"book":"enhanced","gamma":1.0,"x_out":0.2,"x_in":0.35,"y_in":0.9,"y_out":0.75,"tau":0.0,"cap_field":"float_market_cap","smooth":5,"w500":0.85,"woth":0.13,"noth":110,"keep_mult":4.0,"neutral_q":5,"neutral_field":"turnover20","lot_group_below":true,"cap_mult":"F:/A_Layer_Live/indexw/index_weight_mult_a1.parquet","oth_universe":"csi1000"}'
+  [ -f $LIVE/indexw/index_weight_mult_a1.parquet ] && { log "shadow c4"; $PY -m quanta_agents.factor_lab_a.live target --panel-dir $LIVE/panel --prediction $LIVE/pred_live_turnlabel.parquet --nav $NAV --out $LIVE/targets/shadow_c4_turnlabel_iw_o1000 --cfg "$CFG_C4" | grep -E '"asof"|target_invested|target_share500|n_orders'; } || log "shadow c4 skipped or failed (ignored)"
+fi
 if [ -f $LIVE/pred_live_turnlabel.parquet ]; then
   log "shadow c3-B"; $PY -m quanta_agents.factor_lab_a.live target --panel-dir $LIVE/panel --prediction $LIVE/pred_live_turnlabel.parquet --nav $NAV --out $LIVE/targets/shadow_c3B_turnlabel_conc80k4_84_14 --cfg "$CFG_C3B" | grep -E '"asof"|target_invested|target_share500|n_orders'
 fi

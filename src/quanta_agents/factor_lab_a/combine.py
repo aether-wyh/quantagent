@@ -237,7 +237,7 @@ def _smooth_objective(n_codes: int, keep: np.ndarray, lam: float):
 
 def rolling_combination_lowmem(panel, evaluator, ranks: dict, feature_ids: list, target="rank", train_years=(2016, 2017, 2018),
                                target_years=TARGET_YEARS, day_step=4, params=None, seed=0, n_seeds=1, workdir=None, log=print,
-                               label_override=None, min_feature_share=0.8, smooth_lambda=0.0):
+                               label_override=None, min_feature_share=0.8, smooth_lambda=0.0, row_weight=None):
     """Same model as rolling_combination(model='lgbm', update='expanding') with peak memory ~ binned data (1 byte/cell)
     instead of a float32 copy of the training matrix. One pass over the member rank files writes a row-major float16
     memmap of the sampled training rows (all years before the last target year) and one of the test rows; LightGBM
@@ -290,6 +290,11 @@ def rolling_combination_lowmem(panel, evaluator, ranks: dict, feature_ids: list,
         y = (lab.rank(axis=1, pct=True) - 0.5).to_numpy(np.float32).ravel()
     keep_tr = np.isfinite(y) & (fin_tr >= min_feature_share * nf)
     y = np.where(keep_tr, y, 0.0).astype(np.float32)
+    # optional per-row training weights (date x code frame on the panel grid; A17 item 2: universe / top-heavy weighting)
+    w_tr = keep_tr.astype(np.float32)
+    if row_weight is not None:
+        rw = row_weight.iloc[tr_pos].to_numpy(np.float32).ravel()
+        w_tr = np.where(keep_tr & np.isfinite(rw), rw, 0.0).astype(np.float32)
     keep_te = mte.ravel() & (fin_te >= min_feature_share * nf)
     p = {"objective": "regression", "learning_rate": 0.03, "num_leaves": 31, "min_data_in_leaf": 500, "feature_fraction": 0.7,
          "bagging_fraction": 0.7, "bagging_freq": 1, "lambda_l2": 10.0, "verbose": -1, "num_threads": 24, "seed": seed}
@@ -302,10 +307,10 @@ def rolling_combination_lowmem(panel, evaluator, ranks: dict, feature_ids: list,
         # bin boundaries are learned on the first training window only (walk-forward: no test-year feature values
         # influence the binning); every later year reuses those mappers through `reference`
         n_ref = int((row_year_tr <= max(train_years)).sum())
-        ds_ref = lgb.Dataset([MemmapSequence(mm_tr[:n_ref])], label=y[:n_ref], weight=keep_tr[:n_ref].astype(np.float32), params=ds_params, free_raw_data=True)
+        ds_ref = lgb.Dataset([MemmapSequence(mm_tr[:n_ref])], label=y[:n_ref], weight=w_tr[:n_ref], params=ds_params, free_raw_data=True)
         ds_ref.construct()
         seq = MemmapSequence(mm_tr)
-        ds_all = lgb.Dataset([seq], label=y, weight=keep_tr.astype(np.float32), reference=ds_ref, params=ds_params, free_raw_data=True)
+        ds_all = lgb.Dataset([seq], label=y, weight=w_tr, reference=ds_ref, params=ds_params, free_raw_data=True)
         ds_all.construct()
         del ds_ref
         log(f"  binned dataset {n_tr} rows x {nf} features, bins from the first {n_ref} rows ({time.time() - t0:.0f}s)")
