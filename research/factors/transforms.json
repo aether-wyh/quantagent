@@ -1,0 +1,46 @@
+{
+  "neut_cap": [
+    "cs_neutralize({x}, log_cap)",
+    "市值中性化"
+  ],
+  "neut_turn": [
+    "cs_neutralize({x}, cs_rank(rolling_mean(turnover, 20)))",
+    "换手中性化"
+  ],
+  "neut_vol": [
+    "cs_neutralize({x}, cs_rank(rolling_std(ret, 20)))",
+    "波动中性化"
+  ],
+  "ema5": [
+    "ema({x}, 5)",
+    "5日指数平滑"
+  ],
+  "ema10": [
+    "ema({x}, 10)",
+    "10日指数平滑"
+  ],
+  "tsz60": [
+    "ts_zscore({x}, 60)",
+    "60日时序标准化"
+  ],
+  "slog": [
+    "sign({x}) * log(1 + abs({x}))",
+    "符号对数压缩"
+  ],
+  "rank": [
+    "cs_rank({x})",
+    "截面排名"
+  ],
+  "resid_rev20": [
+    "cs_neutralize({x}, close / lag(close, 20) - 1)",
+    "剥离20日反转"
+  ],
+  "delta5": [
+    "delta({x}, 5)",
+    "5日变化"
+  ],
+  "tsrank60": [
+    "ts_rank({x}, 60)",
+    "60日时序排名"
+  ]
+}
