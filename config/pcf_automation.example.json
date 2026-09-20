@@ -11,6 +11,7 @@
   "exclusive_account": false,
   "choice_contract": {
     "validated_with_authorized_test": false,
+    "validated_cancel_with_authorized_test": false,
     "order_id": "",
     "sellable": "",
     "deal_order_id": "",
@@ -23,5 +24,7 @@
   "quote_max_age_seconds": 30,
   "poll_seconds": 2,
   "fill_timeout_seconds": 60,
+  "cancel_on_timeout": false,
+  "cancel_timeout_seconds": 30,
   "order_spacing_seconds": 1
 }

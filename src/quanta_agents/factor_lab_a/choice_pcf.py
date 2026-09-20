@@ -74,8 +74,12 @@ class ChoiceBroker:
         reads = {"AguTrade/SpoBalInfo", "AguTrade/SpoHold", "AguTrade/SpoOrders", "AguTrade/SpoDeal"}
         if payload is None and path not in reads:
             raise TradeError("Unsupported query")
-        if payload is not None and (path != "AguTrade/SpoOrder" or not self.allow_orders):
-            raise TradeError("Order transport disabled")
+        if payload is not None:
+            writes = {"AguTrade/SpoOrder"}
+            if self.contract.get("validated_cancel_with_authorized_test", False):
+                writes.add("AguTrade/SpoCancel")
+            if path not in writes or not self.allow_orders:
+                raise TradeError("Order transport disabled")
         try:
             if payload is None:
                 r = self.session.get(BASE + path, params=params, timeout=15, allow_redirects=False)
@@ -138,7 +142,7 @@ class ChoiceBroker:
             raise TradeError("Accepted response without verifiable order ID")
         return str(oid)
 
-    def progress(self, oid, order):
+    def order_status(self, oid, order):
         rows = [x for x in self._rows("AguTrade/SpoOrders") if str(x["orderId"]) == oid]
         if len(rows) != 1:
             raise TradeError("Order ID absent or ambiguous; no matching by code/price")
@@ -146,12 +150,38 @@ class ChoiceBroker:
         if (normalize_code(str(row["secCode"])) != order["code"] or
                 number(row["orderCount"], True) != order["quantity"] or int(row["drt"]) != order["side"]):
             raise TradeError("Order identity mismatch")
+        if "price" in order and Decimal(str(row["orderPrice"])) != Decimal(str(order["price"])):
+            raise TradeError("Order limit price mismatch")
         filled = number(row["tradeCount"], True)
         if filled > order["quantity"]:
             raise TradeError("Excess fill")
         state = str(row["status"])
         if state not in {str(x) for x in range(1, 11)}:
             raise TradeError("Unknown order status")
+        return {"state": state, "filled": filled}
+
+    def cancel(self, oid, order):
+        """One cancellation request, never a claim that cancellation has completed."""
+        if not self.allow_orders or not self.contract.get("validated_cancel_with_authorized_test", False):
+            raise TradeError("Cancellation contract not validated / transport disabled")
+        status = self.order_status(oid, order)
+        if status["state"] in ("4", "7", "8", "9"):
+            return {"request_sent": False, "reason": "already_terminal"}
+        if status["state"] in ("5", "6"):
+            return {"request_sent": False, "reason": "cancel_already_pending"}
+        if status["state"] == "10":
+            raise TradeError("Prior cancellation failed; no automatic second cancellation")
+        code = normalize_code(order["code"])
+        payload = dict(accId=self.account, mktCode="1" if code.startswith("SH") else "0",
+                       stkCode=code[2:], orderId=oid,
+                       uToken=os.environ.get("CHOICE_UTOKEN"),
+                       cToken=os.environ.get("CHOICE_CTOKEN"), uid=os.environ.get("CHOICE_UID"))
+        self._request("AguTrade/SpoCancel", payload=payload)
+        return {"request_sent": True, "reason": "acknowledged_not_confirmed"}
+
+    def progress(self, oid, order):
+        status = self.order_status(oid, order)
+        state, filled = status["state"], status["filled"]
         deals = [x for x in self._rows("AguTrade/SpoDeal")
                  if str(field(x, self.contract["deal_order_id"])) == oid]
         ids = [str(field(x, self.contract["deal_id"])) for x in deals]
@@ -164,4 +194,6 @@ class ChoiceBroker:
             raise TradeError("Deal/order quantity mismatch")
         # An order response is not a fill. Require order ID linked deal confirmation.
         done = state == "4" and filled == order["quantity"] and total == filled
-        return {"filled": filled, "done": done, "terminal_failure": state in ("7", "8", "9", "10")}
+        return {"filled": filled, "done": done, "state": state,
+                "deals_complete": total == filled,
+                "terminal_failure": state in ("7", "8", "9", "10")}

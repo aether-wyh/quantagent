@@ -223,7 +223,49 @@ class Journal:
         self.db.commit()
 
 
+def settle_unfilled(cfg, day, order, oid, broker, journal, last_filled, sleeper=time.sleep):
+    """Cancel once, then query only. Always stop the batch; never place a replacement."""
+    journal.mark(day, order["code"], "CANCEL_SENDING", oid, last_filled)
+    try:
+        broker.cancel(oid, order)
+    except Exception:
+        # A lost cancellation response may still have succeeded. Do not repeat it.
+        journal.mark(day, order["code"], "CANCEL_UNKNOWN", oid, last_filled)
+    else:
+        journal.mark(day, order["code"], "CANCEL_PENDING", oid, last_filled)
+    deadline = time.monotonic() + max(0., float(cfg.get("cancel_timeout_seconds", 30)))
+    while True:
+        try:
+            progress = broker.progress(oid, order)
+            filled = number(progress["filled"], True)
+            if not last_filled <= filled <= order["quantity"]:
+                raise TradeError("Nonmonotonic/excess fill during cancellation")
+            last_filled = filled
+            if progress["done"]:
+                if filled != order["quantity"]:
+                    raise TradeError("False full fill during cancellation")
+                journal.mark(day, order["code"], "FILLED", oid, filled)
+                return "filled_during_cancel"
+            if progress.get("state") in ("7", "8", "9") and progress.get("deals_complete"):
+                label = "REJECTED" if progress["state"] == "9" else "CANCELLED"
+                journal.mark(day, order["code"], label, oid, filled)
+                return label.lower()
+        except Exception:
+            journal.mark(day, order["code"], "REVIEW_REQUIRED", oid, last_filled)
+            raise TradeError("Cancellation outcome unverified; query account, do not resend") from None
+        journal.mark(day, order["code"], "CANCEL_PENDING", oid, last_filled)
+        if time.monotonic() >= deadline or progress.get("state") == "10":
+            journal.mark(day, order["code"], "REVIEW_REQUIRED", oid, last_filled)
+            raise TradeError("Cancellation not confirmed; outstanding quantity may still fill")
+        sleeper(max(1., float(cfg.get("poll_seconds", 2))))
+
+
 def execute_orders(cfg, plan, broker, journal, clock=now_cn, sleeper=time.sleep):
+    if cfg.get("cancel_on_timeout", False):
+        if not callable(getattr(broker, "cancel", None)):
+            raise TradeError("Cancellation policy requires a cancellation-capable broker")
+        if isinstance(broker, ChoiceBroker) and not broker.contract.get("validated_cancel_with_authorized_test", False):
+            raise TradeError("Validate cancellation contract before enabling the cancellation policy")
     day = plan["execution_date"]
     if not journal.start(day, plan):
         return {"status": "already_complete", "orders": 0}
@@ -275,6 +317,9 @@ def execute_orders(cfg, plan, broker, journal, clock=now_cn, sleeper=time.sleep)
                 positions = {k: v for k, v in positions.items() if v}
                 break
             if progress["terminal_failure"] or time.monotonic() >= deadline or Path(cfg["state_dir"], "STOP").exists():
+                if cfg.get("cancel_on_timeout", False) and not progress["terminal_failure"]:
+                    result = settle_unfilled(cfg, day, order, oid, broker, journal, filled, sleeper)
+                    raise TradeError("Batch stopped after cancellation reconciliation: " + result)
                 raise TradeError("Order partial/unfilled/failed: no further orders; reconcile outstanding order")
             sleeper(max(1., float(cfg.get("poll_seconds", 2))))
         sleeper(max(0., float(cfg.get("order_spacing_seconds", 1))))
