@@ -11,6 +11,7 @@ from pathlib import Path
 import sqlite3
 import subprocess
 import time
+from decimal import Decimal, ROUND_CEILING
 
 import pandas as pd
 
@@ -63,12 +64,13 @@ def calendar(cfg):
     return days
 
 
-def hook(cfg, stage):
+def hook(cfg, stage, **context):
     command = cfg.get(stage + "_command", [])
     if command:
         if not isinstance(command, list) or not all(isinstance(x, str) for x in command):
             raise TradeError("Provider command must be an argv array, not shell text")
         # Local, operator-configured data provider. Never record its stdout or secrets.
+        command = [x.format(**context) if context else x for x in command]
         subprocess.run(command, check=True, timeout=300, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
@@ -115,7 +117,7 @@ def close_job(cfg, now=None, fetch=download_pcf):
 
 def live_quote(cfg, code, now):
     # Provider updates this file atomically, including each exchange quote timestamp.
-    hook(cfg, "quote")
+    hook(cfg, "quote", code=code)
     if cfg.get("quote_command"):
         now = now_cn()
     data = read_json(cfg["live_quotes"])
@@ -196,6 +198,7 @@ class Journal:
         self.db.execute("CREATE TABLE IF NOT EXISTS binding (id INTEGER PRIMARY KEY, account TEXT NOT NULL)")
         self.db.execute("CREATE TABLE IF NOT EXISTS batches (day TEXT PRIMARY KEY, state TEXT NOT NULL, plan TEXT NOT NULL)")
         self.db.execute("CREATE TABLE IF NOT EXISTS orders (day TEXT, code TEXT, state TEXT NOT NULL, oid TEXT, filled INTEGER DEFAULT 0, PRIMARY KEY(day,code))")
+        self.db.execute("CREATE TABLE IF NOT EXISTS capital (day TEXT, code TEXT, reserved_cents INTEGER NOT NULL, PRIMARY KEY(day,code))")
         identity = hashlib.sha256(account.encode()).hexdigest()
         row = self.db.execute("SELECT account FROM binding WHERE id=1").fetchone()
         if row and row[0] != identity:
@@ -221,6 +224,39 @@ class Journal:
     def complete(self, day):
         self.db.execute("UPDATE batches SET state='COMPLETE' WHERE day=?", (day,))
         self.db.commit()
+
+    def reserve_capital(self, day, code, amount, limit):
+        """Durable gross spending cap. Never recycle cancellations, rejects or sells."""
+        cents = int((Decimal(str(amount))*100).to_integral_value(rounding=ROUND_CEILING))
+        ceiling = int(Decimal(str(limit))*100)
+        if cents <= 0 or ceiling <= 0:
+            raise TradeError("Invalid capital reservation")
+        with self.db:
+            self.db.execute("BEGIN IMMEDIATE")
+            used = self.db.execute("SELECT COALESCE(SUM(reserved_cents),0) FROM capital WHERE day=?",(day,)).fetchone()[0]
+            if used+cents > ceiling:
+                raise TradeError("User capital limit exceeded including pending orders and fee reserve")
+            try:
+                self.db.execute("INSERT INTO capital VALUES(?,?,?)",(day,code,cents))
+            except sqlite3.IntegrityError:
+                raise TradeError("This security already consumed capital; never resubmit") from None
+
+
+def order_cash_reserve(cfg, amount):
+    # Research cost remains 0.001 per side. Extra execution buffer covers minimum
+    # commission / temporary freeze differences; it is not reported as paid cost.
+    return float(Decimal(str(amount))*Decimal('1.001') + Decimal(str(number(cfg.get("execution_fee_buffer_per_order",0)))))
+
+
+def target_check_ok(check, frame, trial=False):
+    if (frame.loc[frame.exec_shares > 0,"bucket"] == "outside").any():
+        return False
+    if not trial:
+        return check["fill_1.00"]["ok"]
+    # A user-capped initial-build experiment is not a fully invested competition
+    # account. Minimum investment ratios are reported, never silently called met.
+    selected=frame.loc[frame.exec_shares>0,"exec_mv"]
+    return not selected.empty
 
 
 def settle_unfilled(cfg, day, order, oid, broker, journal, last_filled, sleeper=time.sleep):
@@ -261,6 +297,12 @@ def settle_unfilled(cfg, day, order, oid, broker, journal, last_filled, sleeper=
 
 
 def execute_orders(cfg, plan, broker, journal, clock=now_cn, sleeper=time.sleep):
+    cap=cfg.get("capital_limit")
+    if cap is not None:
+        if not cfg.get("initial_build_test") or number(cap)<=0 or plan["initial_positions"]:
+            raise TradeError("Capital-limited launch requires a new empty test book")
+        if any(x["side"]!=1 for x in plan["orders"]):
+            raise TradeError("Initial capital-limited test is buy-only")
     if cfg.get("cancel_on_timeout", False):
         if not callable(getattr(broker, "cancel", None)):
             raise TradeError("Cancellation policy requires a cancellation-capable broker")
@@ -273,6 +315,8 @@ def execute_orders(cfg, plan, broker, journal, clock=now_cn, sleeper=time.sleep)
     for order in plan["orders"]:
         now = clock()
         validate_session(now, calendar(cfg))
+        if cfg.get("allowed_execution_date") and day != cfg["allowed_execution_date"]:
+            raise TradeError("Execution date outside user-approved test")
         if now.date().isoformat() != day or Path(cfg["state_dir"], "STOP").exists():
             raise TradeError("Wrong execution day or STOP file present")
         state = broker.snapshot()
@@ -285,14 +329,17 @@ def execute_orders(cfg, plan, broker, journal, clock=now_cn, sleeper=time.sleep)
             raise TradeError("Price moved beyond execution tolerance")
         order["price"] = price
         amount = price * order["quantity"]
+        reserve = order_cash_reserve(cfg,amount)
         if amount > float(cfg["max_order_value"]):
             raise TradeError("Order value cap exceeded")
         if order["side"] == 1:
-            if state["cash"] < amount * 1.001:
+            if state["cash"] < reserve:
                 raise TradeError("Insufficient actual cash including 0.001 fee reserve")
         elif state["positions"].get(order["code"], {}).get("sellable", 0) < order["quantity"]:
             raise TradeError("Insufficient actual sellable inventory")
         order_payload(broker.account, order["code"], order["side"], order["quantity"], price)
+        if cap is not None:
+            journal.reserve_capital(day,order["code"],reserve,cap)
         # Commit intent before HTTP. Timeout/crash never automatically resubmits.
         journal.mark(day, order["code"], "SENDING")
         try:
@@ -304,7 +351,12 @@ def execute_orders(cfg, plan, broker, journal, clock=now_cn, sleeper=time.sleep)
         deadline = time.monotonic() + float(cfg.get("fill_timeout_seconds", 60))
         last_filled = 0
         while True:
-            progress = broker.progress(oid, order)
+            try:
+                progress = broker.progress(oid, order)
+            except Exception:
+                if cfg.get("cancel_on_timeout",False):
+                    settle_unfilled(cfg,day,order,oid,broker,journal,last_filled,sleeper)
+                raise TradeError("Fill verification failed; stop and reconcile known order") from None
             filled = number(progress["filled"], True)
             if not last_filled <= filled <= order["quantity"]:
                 raise TradeError("Nonmonotonic/excess cumulative fill")
@@ -346,8 +398,8 @@ def execute_job(cfg, mode="paper", now=None, broker=None, clock=now_cn):
         raise TradeError("STOP or PCF revision block present")
     manifest = read_json(archive / "manifest.json")
     capture = dt.datetime.fromisoformat(manifest["captured_at"])
-    if capture.tzinfo is None or capture.astimezone(CN).date().isoformat() != previous or capture >= now:
-        raise TradeError("PCF was not captured on the previous trading day")
+    if (capture.tzinfo is None or not previous <= capture.astimezone(CN).date().isoformat() < day or capture >= now):
+        raise TradeError("Prior-session PCF must actually be archived before execution day")
     record = read_json(archive / "pcf.json")
     if manifest["execution_date"] != day or manifest["pcf_sha256"] != digest({k:record[k] for k in ("date","baseinfo","stocklist")}):
         raise TradeError("PCF archive integrity/date failed")
@@ -357,6 +409,8 @@ def execute_job(cfg, mode="paper", now=None, broker=None, clock=now_cn):
     with lock(root / (mode + ".lock")):
         broker = broker or (ChoiceBroker(cfg["choice_contract"], allow_orders=True) if mode == "choice"
                             else PaperBroker(cfg["paper_account"], day))
+        if isinstance(broker,ChoiceBroker) and broker.contract.get("initial_buy_only") and not cfg.get("initial_build_test"):
+            raise TradeError("Restricted initial-buy adapter cannot be used for general rebalancing")
         existing = Journal(root / (mode + ".sqlite"), broker.account)
         try:
             prior = existing.db.execute("SELECT state FROM batches WHERE day=?", (day,)).fetchone()
@@ -375,10 +429,16 @@ def execute_job(cfg, mode="paper", now=None, broker=None, clock=now_cn):
         # Subaccount is exclusive. Mark actual morning share quantities at signal close.
         positions = {k:number(v["shares"],True) for k,v in state["positions"].items() if v["shares"]}
         nav = number(state["cash"]) + sum(v * float(prices[k]) for k,v in positions.items())
+        account_nav=nav
+        trial=bool(cfg.get("initial_build_test"))
+        if trial:
+            if positions or cfg.get("capital_limit") is None or day != cfg.get("allowed_execution_date"):
+                raise TradeError("Initial-build trial requires an empty book, cap and exact date")
+            nav=min(nav,number(cfg["capital_limit"]))
         held = pd.DataFrame(list(positions.items()), columns=["code", "shares"])
         frame, summary = build_target(record, quotes, held, nav, days, day, previous)
         # Existing competition constraints are a hard gate, not a silent portfolio rewrite.
-        if not summary["precheck"]["fill_1.00"]["ok"] or (frame.loc[frame.exec_shares > 0,"bucket"] == "outside").any():
+        if not target_check_ok(summary["precheck"],frame,trial):
             raise TradeError("PCF target fails competition limits / approved index union")
         orders = []
         for row in frame.itertuples():
@@ -386,6 +446,8 @@ def execute_job(cfg, mode="paper", now=None, broker=None, clock=now_cn):
                 orders.append({"code":row.code, "side":1 if row.delta_shares>0 else 2,
                                "quantity":int(abs(row.delta_shares)), "reference_price":float(row.close)})
         gross = sum(x["quantity"]*x["reference_price"] for x in orders)
+        if trial and sum(order_cash_reserve(cfg,x["quantity"]*x["reference_price"]) for x in orders)>cfg["capital_limit"]:
+            raise TradeError("Projected initial orders exceed approved capital including execution reserve")
         if len(orders) > int(cfg["max_orders"]) or gross > float(cfg["max_batch_value"]):
             raise TradeError("Batch count/value cap exceeded")
         # Revalue the whole projected book at current prices before submitting anything.
@@ -398,8 +460,15 @@ def execute_job(cfg, mode="paper", now=None, broker=None, clock=now_cn):
         live_hold = {k:v*current[k] for k,v in positions.items()}
         live_target = {r.code:r.exec_shares*current[r.code] for r in frame.itertuples() if r.exec_shares>0}
         member = {r.code:r.bucket=="csi500" for r in frame.itertuples()}
-        if not precheck(live_hold,live_target,live_nav,member)["fill_1.00"]["ok"]:
+        check=precheck(live_hold,live_target,nav if trial else live_nav,member)
+        if trial and (max(live_target.values(),default=0)>nav*.095 or
+                sum(order_cash_reserve(cfg,x["quantity"]*current[x["code"]]) for x in orders)>cfg["capital_limit"]):
+            raise TradeError("Live target exceeds single-security or total approved test capital")
+        if not trial and not check["fill_1.00"]["ok"]:
             raise TradeError("Projected book fails competition limits at current prices")
+        summary.update(capital_limit=cfg.get("capital_limit"),initial_build_test=trial,account_nav=account_nav,
+                       account_precheck=precheck(live_hold,live_target,live_nav,member),
+                       competition_minimums_enforced=not trial)
         plan = {"execution_date":day, "pcf_date":previous, "pcf_sha256":manifest["pcf_sha256"],
                 "initial_positions":positions, "orders":orders, "cost_per_side":.001}
         output = root / mode / day

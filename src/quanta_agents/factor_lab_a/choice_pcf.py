@@ -53,7 +53,11 @@ def order_payload(account, code, side, quantity, price):
 
 class ChoiceBroker:
     def __init__(self, contract, allow_orders=False, session=None):
-        self.contract = contract
+        self.contract = dict(contract)
+        # Authorized 2026-09-20 response: submit uses orderID; order queries use orderId.
+        if not self.contract.get("order_id"):
+            self.contract["order_id"] = "Data.orderID"
+        contract = self.contract
         self.allow_orders = allow_orders
         self.account = os.environ.get("CHOICE_ACCOUNT_ID", "")
         token = os.environ.get("CHOICE_JTOKEN", "")
@@ -62,9 +66,13 @@ class ChoiceBroker:
         self.session = session or requests.Session()
         self.session.headers.update({"token": token})
         if allow_orders:
-            if not contract.get("validated_with_authorized_test", False):
+            initial_buy = contract.get("initial_buy_only", False)
+            if initial_buy and not (contract.get("validated_submission_with_authorized_test") and
+                                    contract.get("validated_cancel_with_authorized_test")):
+                raise TradeError("Initial-buy test requires verified submit and cancellation contracts")
+            if not initial_buy and not contract.get("validated_with_authorized_test", False):
                 raise TradeError("Order response / sellable / deal linkage contract not validated")
-            for k in ("order_id", "sellable", "deal_order_id", "deal_id"):
+            for k in (("order_id",) if initial_buy else ("order_id", "sellable", "deal_order_id", "deal_id")):
                 if not contract.get(k):
                     raise TradeError("Missing validated contract mapping: " + k)
             if not all(os.environ.get(k) for k in ("CHOICE_UTOKEN", "CHOICE_CTOKEN", "CHOICE_UID")):
@@ -122,7 +130,8 @@ class ChoiceBroker:
             if code in positions:
                 raise TradeError("Duplicate position")
             held = number(row["count"], True)
-            sellable = number(field(row, self.contract["sellable"]), True)
+            sellable = (0 if self.contract.get("initial_buy_only") else
+                        number(field(row, self.contract["sellable"]), True))
             if sellable > held:
                 raise TradeError("Sellable exceeds position")
             positions[code] = {"shares": held, "sellable": sellable}
@@ -133,12 +142,14 @@ class ChoiceBroker:
                 "positions": positions, "frozen": number(b["frozenMoney"])}
 
     def submit(self, order):
+        if self.contract.get("initial_buy_only") and order["side"] != 1:
+            raise TradeError("Initial-build test cannot sell; sellable contract remains unverified")
         payload = order_payload(self.account, order["code"], order["side"], order["quantity"], order["price"])
         payload.update(uToken=os.environ.get("CHOICE_UTOKEN"), cToken=os.environ.get("CHOICE_CTOKEN"),
                        uid=os.environ.get("CHOICE_UID"))
         obj = self._request("AguTrade/SpoOrder", payload=payload)
         oid = field(obj, self.contract["order_id"])
-        if not isinstance(oid, (str, int)) or not str(oid).strip():
+        if isinstance(oid, bool) or not isinstance(oid, (str, int)) or not str(oid).strip():
             raise TradeError("Accepted response without verifiable order ID")
         return str(oid)
 
@@ -182,6 +193,32 @@ class ChoiceBroker:
     def progress(self, oid, order):
         status = self.order_status(oid, order)
         state, filled = status["state"], status["filled"]
+        if self.contract.get("initial_buy_only"):
+            # Narrow alternative for an initially empty, buy-only account: require
+            # exactly one server-side order for this security today, and agree on
+            # cumulative fills across order, inventory and trade-detail queries.
+            # This does NOT establish a general deal-ID linkage or sellable schema.
+            same = [x for x in self._rows("AguTrade/SpoOrders")
+                    if normalize_code(str(x["secCode"])) == order["code"]]
+            if order["side"] != 1 or len(same) != 1 or str(same[0]["orderId"]) != oid:
+                raise TradeError("Initial-buy fill audit requires one order per security per day")
+            holdings = [x for x in self._rows("AguTrade/SpoHold")
+                        if normalize_code(str(x["secCode"])) == order["code"]]
+            if len(holdings)>1:
+                raise TradeError("Duplicate inventory rows")
+            held = number(holdings[0]["count"],True) if holdings else 0
+            deals = [x for x in self._rows("AguTrade/SpoDeal")
+                     if normalize_code(str(x["secCode"])) == order["code"]]
+            if any(int(x["drt"])!=1 for x in deals):
+                raise TradeError("Unexpected sell in initial-buy test")
+            total=sum(number(x["tradeCount"],True) for x in deals)
+            if held>filled or total>filled:
+                raise TradeError("Initial-buy account/order/deal quantities disagree")
+            complete=held==total==filled
+            return {"filled":filled,"done":state=="4" and filled==order["quantity"] and complete,
+                    "state":state,"deals_complete":complete,
+                    "terminal_failure":state in ("7","8","9","10"),
+                    "verification":"single_initial_buy_order_plus_inventory_plus_deals"}
         deals = [x for x in self._rows("AguTrade/SpoDeal")
                  if str(field(x, self.contract["deal_order_id"])) == oid]
         ids = [str(field(x, self.contract["deal_id"])) for x in deals]
