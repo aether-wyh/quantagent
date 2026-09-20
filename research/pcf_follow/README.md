@@ -2,6 +2,8 @@
 
 本目录将 563030 易方达中证500增强策略ETF的历史PCF跟随研究移入仓库，并提供与现有 `live target` 相同核心字段的独立影子账户接口。核查基线：主分支 053efee47e49604fced3ea79558be1757204f79f。
 
+后续新增收盘归档、Choice适配器及Windows定时任务，见 [自动化部署说明](../../docs/PCF_CHOICE_AUTOMATION.zh-CN.md)。该执行器09:35开始，历史开盘回测不代表实际执行收益。
+
 ## 接入位置
 
 现有 `scripts/competition_daily.sh` 自动更新数据、打分、生成目标持仓；`docs/COMPETITION_OPS.md` 将实际执行交给外部程序。本仓库这一流程未包含可直接接通券商的下单实现。新模块也只生成计划，不发送订单；原 LightGBM 日任务不变。

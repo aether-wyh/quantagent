@@ -1,0 +1,104 @@
+# 563030 PCF收盘归档及Choice次日执行
+
+本程序沿用前一个交易日PCF策略。T日16:00从易方达官方接口归档T日PCF；T+1交易日09:35开始生成目标并执行限价委托。例如周五的PCF用于下周一，而不是寻找周日清单。
+
+**交付状态：代码和离线端到端测试完成，Choice线上委托响应契约尚待验证；本次没有连接用户账户、发送委托或安装交易定时任务。** 默认模式为本地paper演练。当前比赛账号不应因复制示例配置而开始交易。
+
+## 与已有程序的关系
+
+- `factor_lab_a.pcf`仍只输出目标持仓CSV/JSON。
+- `factor_lab_a.pcf_automation`新增收盘归档、前一交易日选择、目标生成、定时入口和持久订单日志。
+- `factor_lab_a.choice_pcf`实现Choice比赛HTTP查询、限价委托与成交确认，不是券商实盘SDK。
+- 原LightGBM日任务不变。Choice执行要求独立PCF账户，不能把五个策略共享的总账户当作PCF子账户；统一子账执行器未在此PR实现。
+
+新脚本09:35才开始，逐笔成交后继续；此前历史回测是假设次日开盘成交。历史7.26%半年超额收益不能当作该执行器收益，需另收集真实成交再评估。
+
+## 运行准备
+
+安装项目及研究依赖，或设置`PYTHONPATH=src`并安装`research/pcf_follow/requirements.txt`。将`config/pcf_automation.example.json`复制为同目录`pcf_automation.local.json`，后者已被Git忽略。所有相对路径及数据更新命令以配置文件所在目录为工作目录。
+
+程序不会虚构缺失行情、当前指数成员、可卖数量或交易所日历。以下数据须由现有日更/行情程序提供：
+
+|文件|必需内容|
+|---|---|
+|calendar.json|交易所实际交易日数组，如`["2026-09-17","2026-09-18","2026-09-21","2026-09-22"]`；需覆盖PCF前一交易日至未来交易日，例子不是全年日历|
+|close_quotes.csv|code,date,close,reference_date,reference_close,member_csi500,member_union,is_st,tradable；date是PCF日期，reference_date是该PCF的PRETRADINGDAY，两个价格均为不复权价格|
+|live_quotes.json|以SH600001格式代码为键，每行含带时区timestamp、bid、ask、last、lower_limit、upper_limit、tradable、is_st|
+|paper_account.json|仅paper模式使用，含cash、nav、frozen、positions、asof；真实Choice模式读取服务器账户|
+
+实时行情示例（虚构数据，不能用于交易）：
+
+```json
+{"SH600001":{"timestamp":"2026-09-22T09:35:00+08:00","bid":10.0,"ask":10.01,"last":10.0,"lower_limit":9.0,"upper_limit":11.0,"tradable":1,"is_st":0}}
+```
+
+paper账户初始示例：
+
+```json
+{"asof":"2026-09-21","cash":1000000,"nav":1000000,"frozen":0,"positions":{}}
+```
+
+行情时间必须为源行情真实时间，不得以文件写入时间掩盖陈旧行情。当前默认30秒后拒绝下单。运行期间应由独立行情服务持续原子更新live_quotes.json；也可配置`quote_command`在每次读取前刷新。`close_command`在PCF归档后更新收盘价及成员快照，`open_command`在次日生成目标前更新输入。命令为argv字符串数组，空数组表示已有外部数据服务更新文件，不会自动补齐输入。命令失败直接停机。**配置模板没有捆绑可用的行情或指数成员数据源；这些输入接入完成前不能实现无人值守交易。**
+
+## 命令与定时任务
+
+```powershell
+python -m quanta_agents.factor_lab_a.pcf_automation --config config/pcf_automation.local.json close
+python -m quanta_agents.factor_lab_a.pcf_automation --config config/pcf_automation.local.json execute
+python -m quanta_agents.factor_lab_a.pcf_automation --config config/pcf_automation.local.json daemon
+```
+
+默认execute/daemon都使用paper。paper会修改本地假账户，按限价立即全部成交，仅验证流程，不模拟真实撮合、滑点或市场收益；买卖费用各0.001，新增持仓当日不可卖，下一交易日才解锁。
+
+Windows任务安装入口（操作者手动运行；默认收盘归档+paper）：
+
+```powershell
+./scripts/Install-PcfTasks.ps1 -Config ./config/pcf_automation.local.json -Python C:/Path/To/python.exe
+```
+
+脚本注册每天16:00和09:35两个任务，由Python按交易日历跳过休市日。Windows时区要求UTC+08；仅当前用户登录时运行，电脑必须开机且有网络。任务不补跑错过的开盘、不在失败后自动重试。已有同名任务时拒绝覆盖；不要同时启动daemon和任务计划。日志在output/pcf_automation/tasks/。安装脚本本身不立即启动任务。Windows实际任务注册未在本次环境中执行，仅完成语法解析。
+
+## Choice适配器配置边界
+
+从用户提供的2026-09-20调研结论出发，重新核查了Choice公开api.js、index.js、http.js、config.js。来源和SHA256在`research/pcf_follow/choice_frontend_manifest.json`。仅提交来源清单，不上传网页完整源码、账号、登录状态或用户调研中的资产信息。
+
+已从前端确认：基础地址`https://choicelabapi.eastmoney.com//emlab-api/`；查询SpoBalInfo、SpoHold、SpoOrders、SpoDeal；下单POST AguTrade/SpoOrder。买入orderDrt=1、卖出=2，固定限价orderType=1，沪市mktCode=1、深市=0，stkType=1。没有发送遥测请求，也未提供撤单网络入口。
+
+以下返回字段不能从公开网页确定，配置模板故意留空：
+
+- `order_id`：下单完整响应中委托号的点分路径。
+- `sellable`：持仓记录中可卖股数的点分路径，不能用总持仓count代替。
+- `deal_order_id`：成交记录中关联委托号的字段。
+- `deal_id`：成交记录唯一编号的字段，用于发现重复明细。
+
+测试中使用Data.orderId/canSell/orderId/dealId等**虚构契约**，不代表生产接口实测。需在获授权的测试流程中验证这些字段、价格单位、分页完整性、交易时段/调用额度及成交关联，再把`validated_with_authorized_test`设为true。服务器字段变更时会停止，不按相同股票、价格、数量猜测委托归属。
+
+账户凭据只接受进程环境：CHOICE_ACCOUNT_ID、CHOICE_JTOKEN、CHOICE_UTOKEN、CHOICE_CTOKEN、CHOICE_UID。由操作者现有登录/会话管理程序注入，不放入配置、命令行参数或Git。程序不从浏览器提取Cookie，也不处理自动续期。任务计划进程是否继承有效会话需要操作者部署时验证。
+
+完成契约与数据接入后，操作者可设置enable_choice_orders=true、exclusive_account=true，通过`execute --mode choice`或`daemon --mode choice`运行。任务安装脚本的`-EnableChoice`切换09:35任务到Choice模式。**提交此PR与通过离线测试均不等于已获服务器验证或已部署自动交易。**
+
+## 执行及故障处理
+
+1. 前一交易日归档必须存在，PCF日期、哈希和抓取日期必须匹配，不接受次日补抓后冒充前日已知文件。重复归档不覆盖首份版本；发现修订会保留修订文件并设置REVISION_BLOCK。
+2. 按现有PCF算法生成目标，买卖各0.001预留费用，并在现价下复核现有比赛持仓限制。PCF组合不满足限制时停止，不擅自改造成另一个策略。
+3. 先卖后买，每笔提交前检查实际现金、可卖数量、账户持仓变动、未完成订单、行情时效、涨跌停范围、整手及金额上限。按卖一买入、买一卖出发限价单，价格相对上一收盘默认变化超过3%则停止。
+4. SQLite先持久化SENDING再调用HTTP。POST不重试；超时或缺少委托号记为UNKNOWN并停止整批。整个账户同一日期只允许一个PCF批次，改变目标也不生成第二批。
+5. 委托状态4、累计成交数量等于委托数量，并且按委托号关联的去重成交明细数量吻合，才记整笔完成。部分成交实时更新本地订单日志，但不继续后续委托；超时不自动撤单，服务器上仍可能有未完成订单。
+6. 登录过期、业务码错误、分页截断、缺字段、库存冲突均停止。不会把查询失败当作空账户。
+
+在state_dir创建名为STOP的文件可以阻止后续提交；它不会撤销已发送订单。进程崩溃留下.lock时先核对进程与服务器订单，不能为重跑而直接删除SQLite日志。已知委托号可以只读对账：
+
+```powershell
+python -m quanta_agents.factor_lab_a.pcf_automation --config config/pcf_automation.local.json reconcile --date 2026-09-22
+```
+
+该命令只查当日订单并更新本地状态，不猜测缺失委托号，不发送或补发任何订单。不完整批次保留待核对状态；部分成交账户按服务器库存为准。五个策略共用账户时须先接入已有统一执行/子账系统，不得把exclusive_account开关当作已经实现账户隔离。
+
+## 验证
+
+```powershell
+python -m unittest discover -s tests -p 'test_pcf*.py' -v
+python -m unittest discover -s research/pcf_follow -p test_pcf_backtest.py
+```
+
+新增测试覆盖收盘与休市、PCF修订阻断、模拟整篮子执行、重复运行、陈旧行情、下单超时不重试、部分成交停止、登录失效、默认关闭网络委托及成交明细关联。所有交易测试使用虚构账户/内存HTTP响应或本地paper账户；无真实委托。旧历史回放测试继续保留。
